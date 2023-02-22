@@ -117,17 +117,17 @@ pretrained_files += [f"LogisticRegression_{size}.ckpt" for size in [10, 20, 50, 
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
 # For each file, check whether it already exists. If not, try downloading it.
-for file_name in pretrained_files:
-    file_path = os.path.join(CHECKPOINT_PATH, file_name)
-    if "/" in file_name:
-        os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
-    if not os.path.isfile(file_path):
-        file_url = base_url + file_name
-        print(f"Downloading {file_url}...")
-        try:
-            urllib.request.urlretrieve(file_url, file_path)
-        except HTTPError as e:
-            print("Something went wrong. Please try to download the file from the GDrive folder, or contact the author with the full output including the following error:\n", e)
+# for file_name in pretrained_files:
+#     file_path = os.path.join(CHECKPOINT_PATH, file_name)
+#     if "/" in file_name:
+#         os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
+#     if not os.path.isfile(file_path):
+#         file_url = base_url + file_name
+#         print(f"Downloading {file_url}...")
+#         try:
+#             urllib.request.urlretrieve(file_url, file_path)
+#         except HTTPError as e:
+#             print("Something went wrong. Please try to download the file from the GDrive folder, or contact the author with the full output including the following error:\n", e)
 
 """## SimCLR
 
@@ -183,7 +183,8 @@ Luckily, the CIFAR10 dataset is provided through torchvision. Keep in mind, howe
 
 unlabeled_data = CIFAR10(root=DATASET_PATH, train=False, download=True, 
                        transform=ContrastiveTransformations(contrast_transforms, n_views=2))
-train_data_contrast = CIFAR10(root=DATASET_PATH, train=False, download=True, 
+
+train_data_contrast = CIFAR10(root=DATASET_PATH, train=True, download=True, 
                             transform=ContrastiveTransformations(contrast_transforms, n_views=2))
 
 """Finally, before starting with our implementation of SimCLR, let's look at some example image pairs sampled with our augmentations:"""
