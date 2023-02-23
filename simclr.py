@@ -41,6 +41,9 @@ The general setup is that we are given a dataset of images without any labels, a
 We will now implement this framework ourselves and discuss further details along the way. Let's first start with importing our standard libraries below:
 """
 
+print('Hello')
+
+
 # Commented out IPython magic to ensure Python compatibility.
 ## Standard libraries
 import os
@@ -82,6 +85,8 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
 # Import tensorboard
 # %load_ext tensorboard
+
+print('Hello')
 
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
 DATASET_PATH = "../data"
