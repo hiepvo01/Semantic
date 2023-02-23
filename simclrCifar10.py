@@ -185,10 +185,10 @@ contrast_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
 Luckily, the CIFAR10 dataset is provided through torchvision. Keep in mind, however, that since this dataset is relatively large and has a considerably higher resolution than CIFAR10, it requires more disk space (~3GB) and takes a bit of time to download. For our initial discussion of self-supervised learning and SimCLR, we will create two data loaders with our contrastive transformations above: the `unlabeled_data` will be used to train our model via contrastive learning, and `train_data_contrast` will be used as a validation set in contrastive learning.
 """
 
-unlabeled_data = CIFAR10(root=DATASET_PATH, train=False, download=True, 
+unlabeled_data = CIFAR10(root=DATASET_PATH, train=True, download=True, 
                        transform=ContrastiveTransformations(contrast_transforms, n_views=2))
 
-train_data_contrast = CIFAR10(root=DATASET_PATH, train=True, download=True, 
+train_data_contrast = CIFAR10(root=DATASET_PATH, train=False, download=True, 
                             transform=ContrastiveTransformations(contrast_transforms, n_views=2))
 
 """Finally, before starting with our implementation of SimCLR, let's look at some example image pairs sampled with our augmentations:"""
@@ -396,9 +396,9 @@ class LogisticRegression(pl.LightningModule):
 img_transforms = transforms.Compose([transforms.ToTensor(),
                                      transforms.Normalize((0.5,), (0.5,))])
 
-train_img_data = CIFAR10(root=DATASET_PATH, train=False, download=True,
+train_img_data = CIFAR10(root=DATASET_PATH, train=True, download=True,
                        transform=img_transforms)
-test_img_data = CIFAR10(root=DATASET_PATH, train=True, download=True,
+test_img_data = CIFAR10(root=DATASET_PATH, train=False, download=True,
                       transform=img_transforms)
 
 print("Number of training examples:", len(train_img_data))
@@ -570,7 +570,7 @@ train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
                                        transforms.Normalize((0.5,), (0.5,))
                                        ])
 
-train_img_aug_data = CIFAR10(root=DATASET_PATH, train=False, download=True,
+train_img_aug_data = CIFAR10(root=DATASET_PATH, train=True, download=True,
                            transform=train_transforms)
 
 """The training function for the ResNet is almost identical to the Logistic Regression setup. Note that we allow the ResNet to perform validation every 2 epochs to also check whether the model overfits strongly in the first iterations or not."""
