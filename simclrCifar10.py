@@ -303,7 +303,7 @@ class SimCLR(pl.LightningModule):
 Now that we have implemented SimCLR and the data loading pipeline, we are ready to train the model. We will use the same training function setup as usual. For saving the best model checkpoint, we track the metric `val_acc_top5`, which describes how often the correct image patch is within the top-5 most similar examples in the batch. This is usually less noisy than the top-1 metric, making it a better metric to choose the best model from.
 """
 
-def train_simclr(batch_size, max_epochs=50, **kwargs):
+def train_simclr(batch_size, max_epochs=500, **kwargs):
     trainer = pl.Trainer(default_root_dir=os.path.join(CHECKPOINT_PATH, 'SimCLR'),
                          accelerator="gpu" if str(device).startswith("cuda") else "cpu",
                          devices=1,
