@@ -106,28 +106,28 @@ print("Number of workers:", NUM_WORKERS)
 
 import urllib.request
 from urllib.error import HTTPError
-# Github URL where saved models are stored for this tutorial
-base_url = "https://raw.githubusercontent.com/phlippe/saved_models/main/tutorial17/"
-# Files to download
-pretrained_files = ["SimCLR.ckpt", "ResNet.ckpt",
-                    "tensorboards/SimCLR/events.out.tfevents.SimCLR",
-                    "tensorboards/classification/ResNet/events.out.tfevents.ResNet"]
-pretrained_files += [f"LogisticRegression_{size}.ckpt" for size in [10, 20, 50, 100, 200, 500]]
-# Create checkpoint path if it doesn't exist yet
-os.makedirs(CHECKPOINT_PATH, exist_ok=True)
+# # Github URL where saved models are stored for this tutorial
+# base_url = "https://raw.githubusercontent.com/phlippe/saved_models/main/tutorial17/"
+# # Files to download
+# pretrained_files = ["SimCLR.ckpt", "ResNet.ckpt",
+#                     "tensorboards/SimCLR/events.out.tfevents.SimCLR",
+#                     "tensorboards/classification/ResNet/events.out.tfevents.ResNet"]
+# pretrained_files += [f"LogisticRegression_{size}.ckpt" for size in [10, 20, 50, 100, 200, 500]]
+# # Create checkpoint path if it doesn't exist yet
+# os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
-# For each file, check whether it already exists. If not, try downloading it.
-for file_name in pretrained_files:
-    file_path = os.path.join(CHECKPOINT_PATH, file_name)
-    if "/" in file_name:
-        os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
-    if not os.path.isfile(file_path):
-        file_url = base_url + file_name
-        print(f"Downloading {file_url}...")
-        try:
-            urllib.request.urlretrieve(file_url, file_path)
-        except HTTPError as e:
-            print("Something went wrong. Please try to download the file from the GDrive folder, or contact the author with the full output including the following error:\n", e)
+# # For each file, check whether it already exists. If not, try downloading it.
+# for file_name in pretrained_files:
+#     file_path = os.path.join(CHECKPOINT_PATH, file_name)
+#     if "/" in file_name:
+#         os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
+#     if not os.path.isfile(file_path):
+#         file_url = base_url + file_name
+#         print(f"Downloading {file_url}...")
+#         try:
+#             urllib.request.urlretrieve(file_url, file_path)
+#         except HTTPError as e:
+#             print("Something went wrong. Please try to download the file from the GDrive folder, or contact the author with the full output including the following error:\n", e)
 
 """## SimCLR
 
@@ -326,6 +326,8 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
 
 """A common observation in contrastive learning is that the larger the batch size, the better the models perform. A larger batch size allows us to compare each image to more negative examples, leading to overall smoother loss gradients. However, in our case, we experienced that a batch size of 256 was sufficient to get good results."""
 
+print("Training SimCLR for STL10")
+
 simclr_model = train_simclr(batch_size=256, 
                             hidden_dim=128, 
                             lr=5e-4, 
@@ -479,6 +481,9 @@ def get_smaller_dataset(original_dataset, num_imgs_per_label):
 
 """Next, let's run all models. Despite us training 6 models, this cell could be run within a minute or two without the pretrained models. """
 
+
+print("Training Logistic Regression for downstream tasks")
+
 results = {}
 for num_imgs_per_label in [10, 20, 50, 100, 200, 500]:
     sub_train_set = get_smaller_dataset(train_feats_simclr, num_imgs_per_label)
@@ -505,6 +510,7 @@ plt.title("STL10 classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
+plt.savefig('STL10_classification.png')
 plt.show()
 
 for k, score in zip(dataset_sizes, test_scores):
@@ -605,6 +611,8 @@ def train_resnet(batch_size, max_epochs=100, **kwargs):
     return model, result
 
 """Finally, let's train the model and check its results:"""
+
+print("Training Resnet as baseline (the low accuracy on test set shows overfitting)")
 
 resnet_model, resnet_result = train_resnet(batch_size=64,
                                            num_classes=10,
