@@ -41,10 +41,10 @@ class Encoder(torch.nn.Module):
             torch.nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
             torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=1),
+            # torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=1),
             torch.nn.Dropout(p=0.2)
             )
-        self._to_linear = 4 * 4 * 128
+        self._to_linear = 7 * 7 * 128
 
     def forward(self, x):
         x = self.layer1(x)
@@ -53,13 +53,48 @@ class Encoder(torch.nn.Module):
         x = x.view(x.size(0), -1) # Flatten them for FC
         return x
     
+class Decoder(torch.nn.Module):
+    "Decoder network"
+    def __init__(self):
+        super(Decoder, self).__init__()
+        # L1 (?, 28, 28, 1) -> (?, 28, 28, 32) -> (?, 14, 14, 32)
+        self.layer1 = torch.nn.Sequential(
+            torch.nn.ConvTranspose2d(128, 64, kernel_size=3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(64),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(p=0.2)
+            )
+        # L2 (?, 14, 14, 32) -> (?, 14, 14, 64) -> (?, 7, 7, 64)
+        self.layer2 = torch.nn.Sequential(
+            torch.nn.Upsample(scale_factor=2),
+            torch.nn.ConvTranspose2d(64, 32, kernel_size=3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(p=0.2)
+            )
+        # L3 (?, 7, 7, 64) -> (?, 7, 7, 128) -> (?, 4, 4, 128)
+        self.layer3 = torch.nn.Sequential(
+            torch.nn.Upsample(scale_factor=2),
+            torch.nn.ConvTranspose2d(32, 1, kernel_size=3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(1),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(p=0.2)
+            )
+        self._to_linear = 7 * 7 * 128
+
+    def forward(self, x):
+        x = x.view(-1, 128, 7, 7) # Flatten them for FC
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        return x    
 
 class LinearClassifier(torch.nn.Module):
     """Linear classifier"""
     def __init__(self):
         super(LinearClassifier, self).__init__()
         self.fc = torch.nn.Sequential(
-            torch.nn.Linear(4 * 4 * 128, 10),
+            torch.nn.Linear(7 * 7 * 128, 10),
             )
 
     def forward(self, x):
@@ -129,6 +164,32 @@ def training(epoch, model, classifier, train_loader, optimizer, criterion):
     print("[Epoch: {epoch:03d}] Train      | {metric_monitor}".format(epoch=epoch, metric_monitor=metric_monitor))
     return metric_monitor.metrics['Loss']['avg'], metric_monitor.metrics['Accuracy']['avg']
 
+def decoder_training(epoch, model, decoder, train_loader, optimizer, criterion):
+    "Training over an epoch"
+    metric_monitor = MetricMonitor()
+    model.eval()
+    decoder.train()
+    for batch_idx, (data,labels) in enumerate(train_loader):
+        if torch.cuda.is_available():
+            data,labels = data.cuda(), labels.cuda()
+        data, labels = torch.autograd.Variable(data,False), torch.autograd.Variable(labels)
+        with torch.no_grad():
+            features = model.encoder(data)
+        output = decoder(features.float())
+        print(data.shape)
+        print(output.shape)
+        loss = criterion(output, data)
+        # accuracy = calculate_accuracy(output, labels)
+        metric_monitor.update("Loss", loss.item())
+        # metric_monitor.update("Accuracy", accuracy)
+        data.detach()
+        labels.detach()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    print("[Epoch: {epoch:03d}] Train      | {metric_monitor}".format(epoch=epoch, metric_monitor=metric_monitor))
+    return metric_monitor.metrics['Loss']['avg']
+
 
 def validation(epoch, model, classifier, valid_loader, criterion):
     "Validation over an epoch"
@@ -150,6 +211,25 @@ def validation(epoch, model, classifier, valid_loader, criterion):
             labels.detach()
     print("[Epoch: {epoch:03d}] Validation | {metric_monitor}".format(epoch=epoch, metric_monitor=metric_monitor))
     return metric_monitor.metrics['Loss']['avg'], metric_monitor.metrics['Accuracy']['avg']
+
+def decoder_validation(epoch, model, decoder, valid_loader, criterion):
+    "Validation over an epoch"
+    metric_monitor = MetricMonitor()
+    model.eval()
+    decoder.eval()
+    with torch.no_grad():
+        for batch_idx, (data,labels) in enumerate(valid_loader):
+            if torch.cuda.is_available():
+                data,labels = data.cuda(), labels.cuda()
+            data, labels = torch.autograd.Variable(data,False), torch.autograd.Variable(labels)
+            features = model.encoder(data)
+            output = decoder(features.float())
+            loss = criterion(output,data) 
+            metric_monitor.update("Loss", loss.item())
+            data.detach()
+            labels.detach()
+    print("[Epoch: {epoch:03d}] Validation | {metric_monitor}".format(epoch=epoch, metric_monitor=metric_monitor))
+    return metric_monitor.metrics['Loss']['avg']
 
 
 def main():
@@ -217,8 +297,11 @@ def main():
     # Part 2
     model = SupCon(encoder, head=head_type, feat_dim=128)
     classifier = LinearClassifier()
+    decoder = Decoder()
     criterion = torch.nn.CrossEntropyLoss()
     
+    criterion1 = torch.nn.MSELoss()
+
     ckpt = torch.load(save_file, map_location='cpu')
     state_dict = ckpt['model']
     new_state_dict = {}
@@ -230,27 +313,35 @@ def main():
     
     if torch.cuda.is_available():
         model = model.cuda()
-        classifier = classifier.cuda()
-        criterion = criterion.cuda()
+        # classifier = classifier.cuda()
+        decoder = decoder.cuda()
+        # criterion1 = criterion1.cuda()
+        criterion1 = criterion1.cuda()
+        
     
-    train_losses , train_accuracies = [],[]
-    valid_losses , valid_accuracies = [],[]
+    # train_losses , train_accuracies = [],[]
+    # valid_losses , valid_accuracies = [],[]
+    train_losses = []
+    valid_losses = []
     
     if use_early_stopping:
         early_stopping = EarlyStopping(patience=30, verbose=False, delta=1e-4)
  
     for epoch in range(1, num_epochs+1):
         
-        train_loss, train_accuracy = training(epoch, model, classifier, train_loader, optimizer, criterion)
-        valid_loss, valid_accuracy = validation(epoch, model, classifier, valid_loader, criterion)
+        train_loss = decoder_training(epoch, model, decoder, train_loader, optimizer, criterion1)
+        valid_loss = decoder_validation(epoch, model, decoder, valid_loader, criterion1)
+
+        # train_loss, train_accuracy = training(epoch, model, classifier, train_loader, optimizer, criterion)
+        # valid_loss, valid_accuracy = validation(epoch, model, classifier, valid_loader, criterion)
         
         if use_scheduler:
             scheduler.step()
             
         train_losses.append(train_loss)
-        train_accuracies.append(train_accuracy)
+        # train_accuracies.append(train_accuracy)
         valid_losses.append(valid_loss)
-        valid_accuracies.append(valid_accuracy)
+        # valid_accuracies.append(valid_accuracy)
              
         if use_early_stopping: 
             early_stopping(valid_loss, model)
@@ -259,14 +350,17 @@ def main():
                 print('Early stopping at epoch', epoch)
                 #model.load_state_dict(torch.load('checkpoint.pt'))
                 break
+    
+    save_model(decoder, optimizer, num_epochs, 'decoder.pth')
+
      
     plt.plot(range(1,len(train_losses)+1), train_losses, color='b', label = 'training loss')
     plt.plot(range(1,len(valid_losses)+1), valid_losses, color='r', linestyle='dashed', label = 'validation loss')
     plt.legend(), plt.ylabel('loss'), plt.xlabel('epochs'), plt.title('Loss'), plt.show()
      
-    plt.plot(range(1,len(train_accuracies)+1),train_accuracies, color='b', label = 'training accuracy')
-    plt.plot(range(1,len(valid_accuracies)+1),valid_accuracies, color='r', linestyle='dashed', label = 'validation accuracy')
-    plt.legend(), plt.ylabel('loss'), plt.xlabel('epochs'), plt.title('Accuracy'), plt.show()
+    # plt.plot(range(1,len(train_accuracies)+1),train_accuracies, color='b', label = 'training accuracy')
+    # plt.plot(range(1,len(valid_accuracies)+1),valid_accuracies, color='r', linestyle='dashed', label = 'validation accuracy')
+    # plt.legend(), plt.ylabel('loss'), plt.xlabel('epochs'), plt.title('Accuracy'), plt.show()
 
 
     

@@ -85,8 +85,6 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 # Import tensorboard
 # %load_ext tensorboard
 
-print('Hello')
-
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
 DATASET_PATH = "../data"
 # Path to the folder where the pretrained models are saved
@@ -106,32 +104,8 @@ device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("
 print("Device:", device)
 print("Number of workers:", NUM_WORKERS)
 
-"""As in many tutorials before, we provide pre-trained models. Note that those models are slightly larger as normal (~100MB overall) since we use the default ResNet-18 architecture. If you are running this notebook locally, make sure to have sufficient disk space available."""
-
-import urllib.request
-from urllib.error import HTTPError
-# Github URL where saved models are stored for this tutorial
-base_url = "https://raw.githubusercontent.com/phlippe/saved_models/main/tutorial17/"
-# Files to download
-pretrained_files = ["SimCLR.ckpt", "ResNet.ckpt",
-                    "tensorboards/SimCLR/events.out.tfevents.SimCLR",
-                    "tensorboards/classification/ResNet/events.out.tfevents.ResNet"]
-pretrained_files += [f"LogisticRegression_{size}.ckpt" for size in [10, 20, 50, 100, 200, 500]]
 # Create checkpoint path if it doesn't exist yet
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
-
-# For each file, check whether it already exists. If not, try downloading it.
-# for file_name in pretrained_files:
-#     file_path = os.path.join(CHECKPOINT_PATH, file_name)
-#     if "/" in file_name:
-#         os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
-#     if not os.path.isfile(file_path):
-#         file_url = base_url + file_name
-#         print(f"Downloading {file_url}...")
-#         try:
-#             urllib.request.urlretrieve(file_url, file_path)
-#         except HTTPError as e:
-#             print("Something went wrong. Please try to download the file from the GDrive folder, or contact the author with the full output including the following error:\n", e)
 
 """## SimCLR
 
@@ -485,7 +459,7 @@ def get_smaller_dataset(original_dataset, num_imgs_per_label):
 """Next, let's run all models. Despite us training 6 models, this cell could be run within a minute or two without the pretrained models. """
 
 results = {}
-for num_imgs_per_label in [10, 20, 50, 100, 200, 500]:
+for num_imgs_per_label in [10, 20, 50, 100, 200, 500, 1000, 2000]:
     sub_train_set = get_smaller_dataset(train_feats_simclr, num_imgs_per_label)
     _, small_set_results = train_logreg(batch_size=64,
                                         train_feats_data=sub_train_set,
