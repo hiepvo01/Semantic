@@ -235,26 +235,35 @@ class SimCLR(pl.LightningModule):
         self.save_hyperparameters()
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
-        self.convnet = nn.Sequential(
-            nn.Conv2d(3, c_hid, kernel_size=3, padding=1, stride=2), # 32x32 => 16x16
-            torch.nn.BatchNorm2d(c_hid),
-            nn.GELU(),
+        self.convnet = torch.nn.Sequential(
+            torch.nn.Conv2d(1, 8, 3, stride=2, padding=1),
+            torch.nn.BatchNorm2d(8),
+            torch.nn.ReLU(True),
             torch.nn.Dropout(p=0.2),
-            nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
-            torch.nn.BatchNorm2d(c_hid),
-            nn.GELU(),
+            
+            torch.nn.Conv2d(8, 8, 3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(8),
+            torch.nn.ReLU(True),
             torch.nn.Dropout(p=0.2),
-            nn.Conv2d(c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 16x16 => 8x8
-            torch.nn.BatchNorm2d(c_hid*2),
-            nn.GELU(),
+            
+            torch.nn.Conv2d(8, 16, 3, stride=2, padding=1),
+            torch.nn.BatchNorm2d(16),
+            torch.nn.ReLU(True),
             torch.nn.Dropout(p=0.2),
-            nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1),
-            torch.nn.BatchNorm2d(c_hid*2),
-            nn.GELU(),
+            
+            torch.nn.Conv2d(16, 16, 3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(16),
+            torch.nn.ReLU(True),
             torch.nn.Dropout(p=0.2),
-            nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 8x8 => 4x4
-            torch.nn.BatchNorm2d(c_hid*2),
-            nn.GELU(),
+            
+            torch.nn.Conv2d(16, 32, 3, stride=2, padding=0),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
+            torch.nn.Conv2d(32, 32, 3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.ReLU(True),
             torch.nn.Dropout(p=0.2),
             nn.Flatten(), # Image grid to single feature vector
         )
@@ -262,8 +271,9 @@ class SimCLR(pl.LightningModule):
     def forward(self, x):
         x = self.convnet(x)
         x = x.view(x.size(0), -1)
-        x = self.linear(x, 32)
+        x = self.linear(x, 128)
         return x
+
         
 
     def configure_optimizers(self):
