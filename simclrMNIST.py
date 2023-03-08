@@ -13,25 +13,42 @@ class Encoder(torch.nn.Module):
         # L1 (?, 28, 28, 1) -> (?, 28, 28, 32) -> (?, 14, 14, 32)
         self.convnet = torch.nn.Sequential(
             torch.nn.Conv2d(1, 8, 3, stride=2, padding=1),
+            torch.nn.BatchNorm2d(8),
             torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
             torch.nn.Conv2d(8, 8, 3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(8),
             torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
             torch.nn.Conv2d(8, 16, 3, stride=2, padding=1),
             torch.nn.BatchNorm2d(16),
             torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
             torch.nn.Conv2d(16, 16, 3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(16),
             torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
             torch.nn.Conv2d(16, 32, 3, stride=2, padding=0),
+            torch.nn.BatchNorm2d(32),
             torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
             torch.nn.Conv2d(32, 32, 3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(32),
             torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
             torch.nn.Flatten(start_dim=1),
-            torch.nn.Linear(3 * 3 * 32, 128),
+            # torch.nn.Linear(3 * 3 * 32, 128),
             # torch.nn.ReLU(True),
             # torch.nn.Linear(128, 4)
         )
         
-        self._to_linear = 128
+        self._to_linear = 3 * 3 * 32
         
         
     def forward(self, x):

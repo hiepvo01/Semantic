@@ -1,153 +1,264 @@
+import matplotlib.pyplot as plt # plotting library
+import numpy as np # this module is useful to work with numerical arrays
+import pandas as pd 
+import random 
 import torch
-from torchvision import datasets
+import torchvision
 from torchvision import transforms
-import matplotlib.pyplot as plt
-from util import TwoCropTransform, SupCon, SupConLoss, save_model
+from torch.utils.data import DataLoader,random_split
+from torch import nn
+import torch.nn.functional as F
+import torch.optim as optim
 
+data_dir = 'dataset'
+
+train_dataset = torchvision.datasets.MNIST(data_dir, train=True, download=True)
+test_dataset  = torchvision.datasets.MNIST(data_dir, train=False, download=True)
 
 train_transform = transforms.Compose([
-                                       transforms.RandomHorizontalFlip(),
-                                       transforms.ToTensor(),
-                                       transforms.Normalize((0.5,), (0.5,)),
-                                       ])
-valid_transform = transforms.Compose([
-                                    transforms.ToTensor(),
-                                    transforms.Normalize((0.5,), (0.5,)),
-                                    ])
+transforms.ToTensor(),
+])
 
-train_set = datasets.MNIST('./data', download=True, train=True, transform=train_transform)
-valid_set = datasets.MNIST('./data', download=True, train=False, transform=valid_transform)
+test_transform = transforms.Compose([
+transforms.ToTensor(),
+])
 
-class Encoder(torch.nn.Module):
-    "Encoder network"
-    def __init__(self):
-        super(Encoder, self).__init__()
-        # L1 (?, 28, 28, 1) -> (?, 28, 28, 32) -> (?, 14, 14, 32)
-        self.layer1 = torch.nn.Sequential(
-            torch.nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2, stride=2),
-            torch.nn.Dropout(p=0.2)
-            )
-        # L2 (?, 14, 14, 32) -> (?, 14, 14, 64) -> (?, 7, 7, 64)
-        self.layer2 = torch.nn.Sequential(
-            torch.nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2, stride=2),
-            torch.nn.Dropout(p=0.2)
-            )
-        # L3 (?, 7, 7, 64) -> (?, 7, 7, 128) -> (?, 4, 4, 128)
-        self.layer3 = torch.nn.Sequential(
-            torch.nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(128),
-            torch.nn.ReLU(),
-            # torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=1),
-            torch.nn.Dropout(p=0.2)
-            )
-        self._to_linear = 7 * 7 * 128
+train_dataset.transform = train_transform
+test_dataset.transform = test_transform
 
-    def forward(self, x):
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = x.view(x.size(0), -1) # Flatten them for FC
-        return x
+m=len(train_dataset)
 
-class Decoder(torch.nn.Module):
-    "Decoder network"
-    def __init__(self):
-        super(Decoder, self).__init__()
-        # L1 (?, 28, 28, 1) -> (?, 28, 28, 32) -> (?, 14, 14, 32)
-        self.layer1 = torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(128, 64, kernel_size=3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.ReLU(),
-            torch.nn.Dropout(p=0.2)
-            )
-        # L2 (?, 14, 14, 32) -> (?, 14, 14, 64) -> (?, 7, 7, 64)
-        self.layer2 = torch.nn.Sequential(
-            torch.nn.Upsample(scale_factor=2),
-            torch.nn.ConvTranspose2d(64, 32, kernel_size=3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.ReLU(),
-            torch.nn.Dropout(p=0.2)
-            )
-        # L3 (?, 7, 7, 64) -> (?, 7, 7, 128) -> (?, 4, 4, 128)
-        self.layer3 = torch.nn.Sequential(
-            torch.nn.Upsample(scale_factor=2),
-            torch.nn.ConvTranspose2d(32, 1, kernel_size=3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(1),
-            torch.nn.ReLU(),
-            torch.nn.Dropout(p=0.2)
-            )
-        self._to_linear = 7 * 7 * 128
+train_data, val_data = random_split(train_dataset, [int(m-m*0.2), int(m*0.2)])
+batch_size=256
 
-    def forward(self, x):
-        x = x.view(-1, 128, 7, 7)
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        return x
+train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size)
+valid_loader = torch.utils.data.DataLoader(val_data, batch_size=batch_size)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,shuffle=True)
 
-
-class AutoEncoder(torch.nn.Module):
-    def __init__(self):
-        super(AutoEncoder, self).__init__()
-        self.enc = Encoder()
-        self.dec = Decoder()
-
-    def forward(self, x):
-        x = self.enc(x)
-        return self.dec(x)
+class Encoder(nn.Module):
     
-device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
-
+    def __init__(self, encoded_space_dim,fc2_input_dim):
+        super().__init__()
+        
+        ### Convolutional section
+        self.encoder_cnn = nn.Sequential(
+            nn.Conv2d(1, 8, 3, stride=2, padding=1),
+            nn.ReLU(True),
+            nn.Conv2d(8, 16, 3, stride=2, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(True),
+            nn.Conv2d(16, 32, 3, stride=2, padding=0),
+            nn.ReLU(True)
+        )
+        
+        ### Flatten layer
+        self.flatten = nn.Flatten(start_dim=1)
+### Linear section
+        self.encoder_lin = nn.Sequential(
+            nn.Linear(3 * 3 * 32, 128),
+            nn.ReLU(True),
+            nn.Linear(128, encoded_space_dim)
+        )
+        
+    def forward(self, x):
+        x = self.encoder_cnn(x)
+        x = self.flatten(x)
+        x = self.encoder_lin(x)
+        return x
     
-model = AutoEncoder()
-loss_function = torch.nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-1, weight_decay=1e8)
+class Decoder(nn.Module):
+    
+    def __init__(self, encoded_space_dim,fc2_input_dim):
+        super().__init__()
+        self.decoder_lin = nn.Sequential(
+            nn.Linear(encoded_space_dim, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 3 * 3 * 32),
+            nn.ReLU(True)
+        )
 
-if torch.cuda.is_available():
-    model = model.cuda()
-    loss_function = loss_function.cuda()
-        
+        self.unflatten = nn.Unflatten(dim=1, 
+        unflattened_size=(32, 3, 3))
 
-epochs = 100
-outputs = []
-losses = []
-for epoch in range(epochs):
-    print("Epoch " + str(epoch) + " :" )
-    for (image, _) in train_set:
+        self.decoder_conv = nn.Sequential(
+            nn.ConvTranspose2d(32, 16, 3, 
+            stride=2, output_padding=0),
+            nn.BatchNorm2d(16),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(16, 8, 3, stride=2, 
+            padding=1, output_padding=1),
+            nn.BatchNorm2d(8),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(8, 1, 3, stride=2, 
+            padding=1, output_padding=1)
+        )
         
-        if torch.cuda.is_available():
-            image = image.cuda()
-        
-        image = image.view(-1, 1, 28, 28) # Flatten them for FC 
-        reconstructed = model(image)
-        
-        loss = loss_function(reconstructed, image)
-        
+    def forward(self, x):
+        x = self.decoder_lin(x)
+        x = self.unflatten(x)
+        x = self.decoder_conv(x)
+        x = torch.sigmoid(x)
+        return x
+    
+    ### Define the loss function
+loss_fn = torch.nn.MSELoss()
+
+### Define an optimizer (both for the encoder and the decoder!)
+lr= 0.001
+
+### Set the random seed for reproducible results
+torch.manual_seed(0)
+
+### Initialize the two networks
+d = 4
+
+#model = Autoencoder(encoded_space_dim=encoded_space_dim)
+encoder = Encoder(encoded_space_dim=d,fc2_input_dim=128)
+decoder = Decoder(encoded_space_dim=d,fc2_input_dim=128)
+params_to_optimize = [
+    {'params': encoder.parameters()},
+    {'params': decoder.parameters()}
+]
+
+optim = torch.optim.Adam(params_to_optimize, lr=lr, weight_decay=1e-05)
+
+# Check if the GPU is available
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+print(f'Selected device: {device}')
+
+# Move both the encoder and the decoder to the selected device
+encoder.to(device)
+decoder.to(device)
+
+### Training function
+def train_epoch(encoder, decoder, device, dataloader, loss_fn, optimizer):
+    # Set train mode for both the encoder and the decoder
+    encoder.train()
+    decoder.train()
+    train_loss = []
+    # Iterate the dataloader (we do not need the label values, this is unsupervised learning)
+    for image_batch, _ in dataloader: # with "_" we just ignore the labels (the second element of the dataloader tuple)
+        # Move tensor to the proper device
+        image_batch = image_batch.to(device)
+        # Encode data
+        encoded_data = encoder(image_batch)
+        # Decode data
+        decoded_data = decoder(encoded_data)
+        # Evaluate loss
+        loss = loss_fn(decoded_data, image_batch)
+        # Backward pass
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        
-        losses.append(loss)
-        
-    outputs.append((epochs, image, reconstructed))
+        # Print batch loss
+        print('\t partial train loss (single batch): %f' % (loss.data))
+        train_loss.append(loss.detach().cpu().numpy())
 
-save_model(model, optimizer, epochs, './results/autoencoderMNIST.pth')
+    return np.mean(train_loss)
 
-plt.style.use('fivethirtyeight')
-plt.xlabel('Iterations')
-plt.ylabel('Loss')
-plt.plot(losses[-100:])
+### Testing function
+def test_epoch(encoder, decoder, device, dataloader, loss_fn):
+    # Set evaluation mode for encoder and decoder
+    encoder.eval()
+    decoder.eval()
+    with torch.no_grad(): # No need to track the gradients
+        # Define the lists to store the outputs for each batch
+        conc_out = []
+        conc_label = []
+        for image_batch, _ in dataloader:
+            # Move tensor to the proper device
+            image_batch = image_batch.to(device)
+            # Encode data
+            encoded_data = encoder(image_batch)
+            # Decode data
+            decoded_data = decoder(encoded_data)
+            # Append the network output and the original image to the lists
+            conc_out.append(decoded_data.cpu())
+            conc_label.append(image_batch.cpu())
+        # Create a single tensor with all the values in the lists
+        conc_out = torch.cat(conc_out)
+        conc_label = torch.cat(conc_label) 
+        # Evaluate global loss
+        val_loss = loss_fn(conc_out, conc_label)
+    return val_loss.data
 
-for i, item in enumerate(image):
-   item = item.reshape(-1, 28, 28)
-   plt.imshow(item[0])
+def plot_ae_outputs(encoder,decoder,n=10):
+    plt.figure(figsize=(16,4.5))
+    targets = test_dataset.targets.numpy()
+    t_idx = {i:np.where(targets==i)[0][0] for i in range(n)}
+    for i in range(n):
+      ax = plt.subplot(2,n,i+1)
+      img = test_dataset[t_idx[i]][0].unsqueeze(0).to(device)
+      encoder.eval()
+      decoder.eval()
+      with torch.no_grad():
+         rec_img  = decoder(encoder(img))
+      plt.imshow(img.cpu().squeeze().numpy(), cmap='gist_gray')
+      ax.get_xaxis().set_visible(False)
+      ax.get_yaxis().set_visible(False)  
+      if i == n//2:
+        ax.set_title('Original images')
+      ax = plt.subplot(2, n, i + 1 + n)
+      plt.imshow(rec_img.cpu().squeeze().numpy(), cmap='gist_gray')  
+      ax.get_xaxis().set_visible(False)
+      ax.get_yaxis().set_visible(False)  
+      if i == n//2:
+         ax.set_title('Reconstructed images')
+    plt.show()   
+    
+    
+num_epochs = 30
+diz_loss = {'train_loss':[],'val_loss':[]}
+for epoch in range(num_epochs):
+   train_loss =train_epoch(encoder,decoder,device,
+   train_loader,loss_fn,optim)
+   val_loss = test_epoch(encoder,decoder,device,test_loader,loss_fn)
+   print('\n EPOCH {}/{} \t train loss {} \t val loss {}'.format(epoch + 1, num_epochs,train_loss,val_loss))
+   diz_loss['train_loss'].append(train_loss)
+   diz_loss['val_loss'].append(val_loss)
+   plot_ae_outputs(encoder,decoder,n=10)
    
-for i, item in enumerate(reconstructed):
-   item = item.reshape(-1, 28, 28)
-   plt.imshow(item[0])
+test_epoch(encoder,decoder,device,test_loader,loss_fn).item()
+
+
+# Plot losses
+plt.figure(figsize=(10,8))
+plt.semilogy(diz_loss['train_loss'], label='Train')
+plt.semilogy(diz_loss['val_loss'], label='Valid')
+plt.xlabel('Epoch')
+plt.ylabel('Average Loss')
+#plt.grid()
+plt.legend()
+#plt.title('loss')
+plt.show()
+
+def show_image(img):
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+
+encoder.eval()
+decoder.eval()
+
+with torch.no_grad():
+    # calculate mean and std of latent code, generated takining in test images as inputs 
+    images, labels = iter(test_loader).next()
+    images = images.to(device)
+    latent = encoder(images)
+    latent = latent.cpu()
+
+    mean = latent.mean(dim=0)
+    print(mean)
+    std = (latent - mean).pow(2).mean(dim=0).sqrt()
+    print(std)
+
+    # sample latent vectors from the normal distribution
+    latent = torch.randn(128, d)*std + mean
+
+    # reconstruct images from the random latent vectors
+    latent = latent.to(device)
+    img_recon = decoder(latent)
+    img_recon = img_recon.cpu()
+
+    fig, ax = plt.subplots(figsize=(20, 8.5))
+    show_image(torchvision.utils.make_grid(img_recon[:100],10,5))
+    plt.show()

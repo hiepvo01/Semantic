@@ -41,8 +41,6 @@ The general setup is that we are given a dataset of images without any labels, a
 We will now implement this framework ourselves and discuss further details along the way. Let's first start with importing our standard libraries below:
 """
 
-print('Hello')
-
 # Commented out IPython magic to ensure Python compatibility.
 ## Standard libraries
 import os
@@ -58,8 +56,6 @@ import matplotlib
 matplotlib.rcParams['lines.linewidth'] = 2.0
 import seaborn as sns
 sns.set()
-
-from util import TwoCropTransform, SupCon, SupConLoss, save_model
 
 ## tqdm for loading bars
 from tqdm.notebook import tqdm
@@ -90,7 +86,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
 DATASET_PATH = "./data"
 # Path to the folder where the pretrained models are saved
-CHECKPOINT_PATH = "./results/cifar10_new"
+CHECKPOINT_PATH = "./results/CIFAR10"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
 NUM_WORKERS = os.cpu_count()
@@ -106,8 +102,32 @@ device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("
 print("Device:", device)
 print("Number of workers:", NUM_WORKERS)
 
+"""As in many tutorials before, we provide pre-trained models. Note that those models are slightly larger as normal (~100MB overall) since we use the default ResNet-18 architecture. If you are running this notebook locally, make sure to have sufficient disk space available."""
+
+import urllib.request
+from urllib.error import HTTPError
+# Github URL where saved models are stored for this tutorial
+base_url = "https://raw.githubusercontent.com/phlippe/saved_models/main/tutorial17/"
+# Files to download
+pretrained_files = ["SimCLR.ckpt", "ResNet.ckpt",
+                    "tensorboards/SimCLR/events.out.tfevents.SimCLR",
+                    "tensorboards/classification/ResNet/events.out.tfevents.ResNet"]
+pretrained_files += [f"LogisticRegression_{size}.ckpt" for size in [10, 20, 50, 100, 200, 500]]
 # Create checkpoint path if it doesn't exist yet
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
+
+# # For each file, check whether it already exists. If not, try downloading it.
+# for file_name in pretrained_files:
+#     file_path = os.path.join(CHECKPOINT_PATH, file_name)
+#     if "/" in file_name:
+#         os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
+#     if not os.path.isfile(file_path):
+#         file_url = base_url + file_name
+#         print(f"Downloading {file_url}...")
+#         try:
+#             urllib.request.urlretrieve(file_url, file_path)
+#         except HTTPError as e:
+#             print("Something went wrong. Please try to download the file from the GDrive folder, or contact the author with the full output including the following error:\n", e)
 
 """## SimCLR
 
@@ -143,7 +163,7 @@ Overall, for our experiments, we apply a set of 5 transformations following the 
 """
 
 contrast_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
-                                          transforms.RandomResizedCrop(size=32),
+                                          transforms.RandomResizedCrop(size=96),
                                           transforms.RandomApply([
                                               transforms.ColorJitter(brightness=0.5, 
                                                                      contrast=0.5, 
@@ -156,15 +176,14 @@ contrast_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
                                           transforms.Normalize((0.5,), (0.5,))
                                          ])
 
-"""After discussing the data augmentation techniques, we can now focus on the dataset. In this tutorial, we will use the [CIFAR10 dataset](https://cs.stanford.edu/~acoates/stl10/), which, similarly to CIFAR10, contains images of 10 classes: airplane, bird, car, cat, deer, dog, horse, monkey, ship, truck. However, the images have a higher resolution, namely $32\times 32$ pixels, and we are only provided with 500 labeled images per class. Additionally, we have a much larger set of $100,000$ unlabeled images which are similar to the training images but are sampled from a wider range of animals and vehicles. This makes the dataset ideal to showcase the benefits that self-supervised learning offers.
+"""After discussing the data augmentation techniques, we can now focus on the dataset. In this tutorial, we will use the [CIFAR10 dataset](https://cs.stanford.edu/~acoates/CIFAR10/), which, similarly to CIFAR10, contains images of 10 classes: airplane, bird, car, cat, deer, dog, horse, monkey, ship, truck. However, the images have a higher resolution, namely $96\times 96$ pixels, and we are only provided with 500 labeled images per class. Additionally, we have a much larger set of $100,000$ unlabeled images which are similar to the training images but are sampled from a wider range of animals and vehicles. This makes the dataset ideal to showcase the benefits that self-supervised learning offers.
 
 Luckily, the CIFAR10 dataset is provided through torchvision. Keep in mind, however, that since this dataset is relatively large and has a considerably higher resolution than CIFAR10, it requires more disk space (~3GB) and takes a bit of time to download. For our initial discussion of self-supervised learning and SimCLR, we will create two data loaders with our contrastive transformations above: the `unlabeled_data` will be used to train our model via contrastive learning, and `train_data_contrast` will be used as a validation set in contrastive learning.
 """
 
-unlabeled_data = CIFAR10(root=DATASET_PATH, train=True, download=True, 
+unlabeled_data = CIFAR10(root=DATASET_PATH, split='unlabeled', download=True, 
                        transform=ContrastiveTransformations(contrast_transforms, n_views=2))
-
-train_data_contrast = CIFAR10(root=DATASET_PATH, train=False, download=True, 
+train_data_contrast = CIFAR10(root=DATASET_PATH, train=True, download=True, 
                             transform=ContrastiveTransformations(contrast_transforms, n_views=2))
 
 """Finally, before starting with our implementation of SimCLR, let's look at some example image pairs sampled with our augmentations:"""
@@ -217,7 +236,6 @@ class SimCLR(pl.LightningModule):
         self.save_hyperparameters()
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
-                
         self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
         # The MLP for g(.) consists of Linear->ReLU->Linear 
         self.convnet.fc = nn.Sequential(
@@ -225,25 +243,6 @@ class SimCLR(pl.LightningModule):
             nn.ReLU(inplace=True),
             nn.Linear(4*hidden_dim, hidden_dim)
         )
-        
-        # self.convnet = nn.Sequential(
-        #     nn.Conv2d(1, 8, 3, stride=2, padding=1),
-        #     nn.ReLU(True),
-        #     nn.Conv2d(8, 16, 3, stride=2, padding=1),
-        #     nn.BatchNorm2d(16),
-        #     nn.ReLU(True),
-        #     nn.Conv2d(16, 32, 3, stride=2, padding=0),
-        #     nn.ReLU(True),
-        #     nn.Flatten(start_dim=1),
-        #     nn.Linear(3 * 3 * 32, 128),
-        #     nn.ReLU(True),
-        #     nn.Linear(128, 4)
-        # )
-        
-        
-    def forward(self, x):
-        x = self.convnet(x)
-        return x
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), 
@@ -311,7 +310,7 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
     # Check whether pretrained model exists. If yes, load it and skip training
     pretrained_filename = os.path.join(CHECKPOINT_PATH, 'SimCLR.ckpt')
     if os.path.isfile(pretrained_filename):
-        print(f'Found pretrained model at {pretrained_filename}, loading...'% pretrained_filename)
+        print(f'Found pretrained model at {pretrained_filename}, loading...')
         model = SimCLR.load_from_checkpoint(pretrained_filename) # Automatically loads the model with the saved hyperparameters
     else:
         train_loader = data.DataLoader(unlabeled_data, batch_size=batch_size, shuffle=True, 
@@ -320,7 +319,8 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
                                      drop_last=False, pin_memory=True, num_workers=NUM_WORKERS)
         pl.seed_everything(42) # To be reproducable
         model = SimCLR(max_epochs=max_epochs, **kwargs)
-        # trainer.fit(model, train_loader, val_loader)
+        trainer.fit(model, train_loader, val_loader)
+        print(trainer.checkpoint_callback.best_model_path)
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
 
     return model
@@ -332,9 +332,7 @@ simclr_model = train_simclr(batch_size=256,
                             lr=5e-4, 
                             temperature=0.07, 
                             weight_decay=1e-4, 
-                            max_epochs=500)
-
-torch.save(simclr_model, 'results/cifar10_new/simclrCifar10.pth')
+                            max_epochs=100)
 
 """To get an intuition of how training with contrastive learning behaves, we can take a look at the TensorBoard below:"""
 
@@ -482,10 +480,8 @@ def get_smaller_dataset(original_dataset, num_imgs_per_label):
 
 """Next, let's run all models. Despite us training 6 models, this cell could be run within a minute or two without the pretrained models. """
 
-print("train logreg")
-
 results = {}
-for num_imgs_per_label in [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]:
+for num_imgs_per_label in [10, 20, 50, 100, 200, 500]:
     sub_train_set = get_smaller_dataset(train_feats_simclr, num_imgs_per_label)
     _, small_set_results = train_logreg(batch_size=64,
                                         train_feats_data=sub_train_set,
@@ -495,7 +491,6 @@ for num_imgs_per_label in [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]:
                                         num_classes=10,
                                         lr=1e-3,
                                         weight_decay=1e-3)
-    
     results[num_imgs_per_label] = small_set_results
 
 """Finally, let's plot the results."""
@@ -511,11 +506,9 @@ plt.title("CIFAR10 classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
-
-plt.savefig('figures/CIFAR10.png', format="png")
 plt.show()
 
-plt.show()
+plt.savefig('figures/CIFAR10.png')
 
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
@@ -568,7 +561,7 @@ class ResNet(pl.LightningModule):
 """It is clear that the ResNet easily overfits on the training data since its parameter count is more than 1000 times larger than the dataset size. To make the comparison to the contrastive learning models fair, we apply data augmentations similar to the ones we used before: horizontal flip, crop-and-resize, grayscale, and gaussian blur. Color distortions as before are not used because the color distribution of an image showed to be an important feature for the classification. Hence, we observed no noticeable performance gains when adding color distortions to the set of augmentations. Similarly, we restrict the resizing operation before cropping to the max. 125% of its original resolution, instead of 1250% as done in SimCLR. This is because, for classification, the model needs to recognize the full object, while in contrastive learning, we only want to check whether two patches belong to the same image/object. Hence, the chosen augmentations below are overall weaker than in the contrastive learning case."""
 
 train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
-                                       transforms.RandomResizedCrop(size=32, scale=(0.8, 1.0)),
+                                       transforms.RandomResizedCrop(size=96, scale=(0.8, 1.0)),
                                        transforms.RandomGrayscale(p=0.2),
                                        transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 0.5)),
                                        transforms.ToTensor(),
