@@ -219,12 +219,12 @@ class SimCLR(pl.LightningModule):
         # Base model f(.)
         ### Convolutional section
         self.convnet = nn.Sequential(
-            nn.Conv2d(1, 8, 3, stride=2, padding=1),
+            nn.Conv2d(1, 8, stride=2, padding=1),
             nn.ReLU(True),
-            nn.Conv2d(8, 16, 3, stride=2, padding=1),
+            nn.Conv2d(8, 16, stride=2, padding=1),
             nn.BatchNorm2d(16),
             nn.ReLU(True),
-            nn.Conv2d(16, 32, 3, stride=2, padding=0),
+            nn.Conv2d(16, 32, stride=2, padding=0),
             nn.ReLU(True)
         )
         
