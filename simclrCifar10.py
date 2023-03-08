@@ -246,7 +246,6 @@ class SimCLR(pl.LightningModule):
             nn.GELU(),
             nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 8x8 => 4x4
             nn.GELU(),
-            nn.Flatten(), # Image grid to single feature vector
         )
 
     def forward(self, x):
