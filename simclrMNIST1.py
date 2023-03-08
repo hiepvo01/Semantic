@@ -493,6 +493,7 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
         pl.seed_everything(42)  # To be reproducable
         model = LogisticRegression(**kwargs)
         # trainer.fit(model, train_loader, test_loader)
+        print(trainer.checkpoint_callback.best_model_path)
         model = LogisticRegression.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
         trainer.save_checkpoint("./results/MNIST/logregMNIST.ckpt")
 
