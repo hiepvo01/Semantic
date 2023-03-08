@@ -226,21 +226,15 @@ class SimCLR(pl.LightningModule):
             nn.ReLU(True),
             nn.Conv2d(16, 32, 3, stride=2, padding=0),
             nn.ReLU(True)
-        )
-        
-        ### Flatten layer
-        self.flatten = nn.Flatten(start_dim=1)
-        ### Linear section
-        self.encoder_lin = nn.Sequential(
+            nn.Flatten(start_dim=1)
             nn.Linear(3 * 3 * 32, 128),
             nn.ReLU(True),
             nn.Linear(128, 4)
         )
         
+        
     def forward(self, x):
         x = self.convnet(x)
-        x = self.flatten(x)
-        x = self.encoder_lin(x)
         return x
 
     def configure_optimizers(self):
