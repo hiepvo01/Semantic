@@ -273,6 +273,7 @@ class SimCLR(pl.LightningModule):
         x = x.view(x.size(0), -1)
         x = self.linear(x, 128)
         return x
+    
 
         
 
@@ -539,7 +540,7 @@ plt.title("CIFAR10 classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
-plt.savefig('./figures/CIFAR10.png', type('png'))
+plt.savefig('./figures/CIFAR10.png', format="png")
 plt.show()
 
 

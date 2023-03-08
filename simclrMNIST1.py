@@ -494,7 +494,7 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
         model = LogisticRegression(**kwargs)
         trainer.fit(model, train_loader, test_loader)
         model = LogisticRegression.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
-        trainer.save_checkpoint("'./results/MNIST/logregMNIST.ckpt")
+        trainer.save_checkpoint("./results/MNIST/logregMNIST.ckpt")
 
 
     # Test best model on train and validation set
@@ -541,7 +541,7 @@ plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
 
-plt.savefig('figures/MNIST.png', type('png'))
+plt.savefig('figures/MNIST.png', format="png")
 plt.show()
 
 
