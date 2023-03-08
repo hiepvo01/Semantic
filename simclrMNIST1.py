@@ -236,7 +236,7 @@ class SimCLR(pl.LightningModule):
             torch.nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
             torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
-            # torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=1),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=1),
             torch.nn.Dropout(p=0.2),
         
             torch.nn.Flatten(), # Image grid to single feature vector
