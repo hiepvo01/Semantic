@@ -507,6 +507,8 @@ plt.ylabel("Test accuracy")
 plt.minorticks_off()
 plt.show()
 
+plt.savefig('figures/STL10.png')
+
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
 
