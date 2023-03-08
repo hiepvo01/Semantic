@@ -90,7 +90,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
 DATASET_PATH = "./data"
 # Path to the folder where the pretrained models are saved
-CHECKPOINT_PATH = "./results/cifar10"
+CHECKPOINT_PATH = "./results/cifar10_new"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
 NUM_WORKERS = os.cpu_count()
@@ -218,13 +218,32 @@ class SimCLR(pl.LightningModule):
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
                 
-        self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
-        # The MLP for g(.) consists of Linear->ReLU->Linear 
-        self.convnet.fc = nn.Sequential(
-            self.convnet.fc,  # Linear(ResNet output, 4*hidden_dim)
-            nn.ReLU(inplace=True),
-            nn.Linear(4*hidden_dim, hidden_dim)
+        # self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
+        # # The MLP for g(.) consists of Linear->ReLU->Linear 
+        # self.convnet.fc = nn.Sequential(
+        #     self.convnet.fc,  # Linear(ResNet output, 4*hidden_dim)
+        #     nn.ReLU(inplace=True),
+        #     nn.Linear(4*hidden_dim, hidden_dim)
+        # )
+        
+        self.convnet = nn.Sequential(
+            nn.Conv2d(1, 8, 3, stride=2, padding=1),
+            nn.ReLU(True),
+            nn.Conv2d(8, 16, 3, stride=2, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(True),
+            nn.Conv2d(16, 32, 3, stride=2, padding=0),
+            nn.ReLU(True),
+            nn.Flatten(start_dim=1),
+            nn.Linear(3 * 3 * 32, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 4)
         )
+        
+        
+    def forward(self, x):
+        x = self.convnet(x)
+        return x
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), 
@@ -315,7 +334,7 @@ simclr_model = train_simclr(batch_size=256,
                             weight_decay=1e-4, 
                             max_epochs=500)
 
-torch.save(simclr_model, 'results/cifar10/simclrCifar10.pth')
+torch.save(simclr_model, 'results/cifar10_new/simclrCifar10.pth')
 
 """To get an intuition of how training with contrastive learning behaves, we can take a look at the TensorBoard below:"""
 

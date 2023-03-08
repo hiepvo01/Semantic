@@ -228,8 +228,8 @@ class SimCLR(pl.LightningModule):
             nn.ReLU(True),
             nn.Flatten(start_dim=1),
             nn.Linear(3 * 3 * 32, 128),
-            nn.ReLU(True),
-            nn.Linear(128, 4)
+            # nn.ReLU(True),
+            # nn.Linear(128, 4)
         )
         
         
