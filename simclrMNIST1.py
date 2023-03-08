@@ -473,6 +473,9 @@ def get_smaller_dataset(original_dataset, num_imgs_per_label):
 
 """Next, let's run all models. Despite us training 6 models, this cell could be run within a minute or two without the pretrained models. """
 
+print("train logreg")
+
+
 results = {}
 for num_imgs_per_label in [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]:
     sub_train_set = get_smaller_dataset(train_feats_simclr, num_imgs_per_label)
