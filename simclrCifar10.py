@@ -42,6 +42,8 @@ We will now implement this framework ourselves and discuss further details along
 """
 
 print('Hello')
+import matplotlib as mpl
+mpl.use('Agg')
 
 # Commented out IPython magic to ensure Python compatibility.
 ## Standard libraries
