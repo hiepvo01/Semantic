@@ -237,16 +237,13 @@ class SimCLR(pl.LightningModule):
             torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
             # torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=1),
-            torch.nn.Dropout(p=0.2)
+            torch.nn.Dropout(p=0.2),
         
-        )
-        
-        # The MLP for g(.) consists of Linear->ReLU->Linear 
-        self.convnet.fc = nn.Sequential(
-            self.convnet.fc,  # Linear(ResNet output, 4*hidden_dim)
-            nn.ReLU(inplace=True),
-            nn.Linear(4*hidden_dim, hidden_dim)
-        )
+            torch.nn.Flatten(), # Image grid to single feature vector
+            )
+    
+    def forward(self, x):
+        return self.convnet(x)
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), 

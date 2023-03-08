@@ -217,6 +217,22 @@ class SimCLR(pl.LightningModule):
         self.save_hyperparameters()
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
+        
+        self.convnet = nn.Sequential(
+            nn.Conv2d(num_input_channels, c_hid, kernel_size=3, padding=1, stride=2), # 32x32 => 16x16
+            act_fn(),
+            nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
+            act_fn(),
+            nn.Conv2d(c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 16x16 => 8x8
+            act_fn(),
+            nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1),
+            act_fn(),
+            nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 8x8 => 4x4
+            act_fn(),
+            nn.Flatten(), # Image grid to single feature vector
+            nn.Linear(2*16*c_hid, latent_dim)
+        )
+        
         self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
         # The MLP for g(.) consists of Linear->ReLU->Linear 
         self.convnet.fc = nn.Sequential(
