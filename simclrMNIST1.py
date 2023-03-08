@@ -267,17 +267,13 @@ class SimCLR(pl.LightningModule):
             torch.nn.ReLU(True),
             torch.nn.Dropout(p=0.2),
             
-            torch.nn.Flatten(start_dim=1),
-            
-            # torch.nn.ReLU(True),
-            # torch.nn.Linear(128, 4)
+            nn.Flatten(), # Image grid to single feature vector
         )
-        
-        self._to_linear = 128
-        
-        
+
     def forward(self, x):
         x = self.convnet(x)
+        x = x.view(x.size(0), -1)
+        x = self.linear(x, 128)
         return x
 
     def configure_optimizers(self):

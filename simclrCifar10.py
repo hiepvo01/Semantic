@@ -247,11 +247,14 @@ class SimCLR(pl.LightningModule):
             nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 8x8 => 4x4
             nn.GELU(),
             nn.Flatten(), # Image grid to single feature vector
-            nn.Linear(2*16*c_hid, hidden_dim)
         )
 
     def forward(self, x):
-        return self.net(x)
+        x = self.convnet(x)
+        x = x.view(x.size(0), -1)
+        x = self.linear(x, 128)
+        return x
+        
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), 
