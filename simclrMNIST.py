@@ -5,6 +5,24 @@ import matplotlib.pyplot as plt
 from util import EarlyStopping, MetricMonitor
 from util import TwoCropTransform, SupCon, SupConLoss, save_model
 
+class ExtraLinear(torch.nn.Module):
+    "Linear network"
+    def __init__(self):
+        super(Encoder, self).__init__()
+        # L1 (?, 28, 28, 1) -> (?, 28, 28, 32) -> (?, 14, 14, 32)
+        self.lin = torch.nn.Sequential(
+            torch.nn.Linear(128, 64),
+            torch.nn.ReLU(True),
+            torch.nn.Linear(64, 32)
+        )
+        
+        self._to_linear = 32
+        
+        
+    def forward(self, x):
+        x = self.lin(x)
+        return x
+
    
 class Encoder(torch.nn.Module):
     "Encoder network"
@@ -90,7 +108,7 @@ def main():
     use_scheduler = True
     head_type = 'mlp' # choose among 'mlp' and 'linear"
     method = 'SimCLR' # choose among 'SimCLR' and 'SupCon'
-    save_file = os.path.join('./results/', 'simclrMNIST.pth')
+    save_file = os.path.join('./results/', 'simclrMNIST1.pth')
     if not os.path.isdir('./results/'):
          os.makedirs('./results/')
     

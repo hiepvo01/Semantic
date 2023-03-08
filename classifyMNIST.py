@@ -4,7 +4,7 @@ from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
 from util import EarlyStopping, MetricMonitor
 from util import TwoCropTransform, SupCon, SupConLoss, save_model
-from simclrMNIST import Encoder
+from simclrMNIST import Encoder, ExtraLinear
 import torch.optim as optim
 import pytorch_lightning as pl
 import torch.nn.functional as F
@@ -52,7 +52,7 @@ class LinearClassifier(torch.nn.Module):
     def __init__(self):
         super(LinearClassifier, self).__init__()
         self.fc = torch.nn.Sequential(
-            torch.nn.Linear(128, 10),
+            torch.nn.Linear(32, 10),
             )
 
     def forward(self, x):
@@ -69,7 +69,7 @@ def calculate_accuracy(output, target):
     target = torch.flatten(target)
     return torch.true_divide((target == output).sum(dim=0), output.size(0)).item() 
 
-def training(epoch, model, classifier, train_loader, optimizer, criterion):
+def training(epoch, model, extra, classifier, train_loader, optimizer, criterion):
     "Training over an epoch"
     metric_monitor = MetricMonitor()
     model.eval()
@@ -80,6 +80,7 @@ def training(epoch, model, classifier, train_loader, optimizer, criterion):
         data, labels = torch.autograd.Variable(data,False), torch.autograd.Variable(labels)
         with torch.no_grad():
             features = model.encoder(data)
+            features = extra(features)
         output = classifier(features.float())
         loss = criterion(output, labels) 
         accuracy = calculate_accuracy(output, labels)
@@ -93,7 +94,7 @@ def training(epoch, model, classifier, train_loader, optimizer, criterion):
     print("[Epoch: {epoch:03d}] Train      | {metric_monitor}".format(epoch=epoch, metric_monitor=metric_monitor))
     return metric_monitor.metrics['Loss']['avg'], metric_monitor.metrics['Accuracy']['avg']
 
-def validation(epoch, model, classifier, valid_loader, criterion):
+def validation(epoch, model, extra, classifier, valid_loader, criterion):
     "Validation over an epoch"
     metric_monitor = MetricMonitor()
     model.eval()
@@ -104,6 +105,7 @@ def validation(epoch, model, classifier, valid_loader, criterion):
                 data,labels = data.cuda(), labels.cuda()
             data, labels = torch.autograd.Variable(data,False), torch.autograd.Variable(labels)
             features = model.encoder(data)
+            features = extra(data)
             output = classifier(features.float())
             loss = criterion(output,labels) 
             accuracy = calculate_accuracy(output, labels)
@@ -123,7 +125,7 @@ def main():
     use_scheduler = True
     head_type = 'mlp' # choose among 'mlp' and 'linear"
     method = 'SimCLR' # choose among 'SimCLR' and 'SupCon'
-    save_file = os.path.join('./results/', 'simclrMNIST.pth')
+    save_file = os.path.join('./results/', 'simclrMNIST1.pth')
     if not os.path.isdir('./results/'):
          os.makedirs('./results/')
     
@@ -145,7 +147,9 @@ def main():
     
     # Part 2
     encoder = Encoder()
+    extra = ExtraLinear()
     model = SupCon(encoder, head=head_type, feat_dim=128)
+    
     criterion = torch.nn.CrossEntropyLoss()
     classifier = LinearClassifier()
     
@@ -161,6 +165,7 @@ def main():
     
     if torch.cuda.is_available():
         model = model.cuda()
+        extra = extra.cuda()
         classifier = classifier.cuda()
         criterion = criterion.cuda()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-3)
@@ -174,8 +179,8 @@ def main():
  
     for epoch in range(1, num_epochs+1):
 
-        train_loss, train_accuracy = training(epoch, model, classifier, train_loader, optimizer, criterion)
-        valid_loss, valid_accuracy = validation(epoch, model, classifier, valid_loader, criterion)
+        train_loss, train_accuracy = training(epoch, model, extra, classifier, train_loader, optimizer, criterion)
+        valid_loss, valid_accuracy = validation(epoch, model, extra, classifier, valid_loader, criterion)
         
         if use_scheduler:
             scheduler.step()
@@ -193,14 +198,14 @@ def main():
                 #model.load_state_dict(torch.load('checkpoint.pt'))
                 break
     
-    save_model(classifier, optimizer, num_epochs, './results/classifyMNIST.pth')
+    save_model(classifier, optimizer, num_epochs, './results/classifyMNIST1.pth')
 
      
     plt.plot(range(1,len(train_losses)+1), train_losses, color='b', label = 'training loss')
     plt.plot(range(1,len(valid_losses)+1), valid_losses, color='r', linestyle='dashed', label = 'validation loss')
     plt.legend(), plt.ylabel('loss'), plt.xlabel('epochs'), plt.title('Loss')
     
-    plt.savefig('./figures/classifyMNIST_loss.png', format="png")
+    plt.savefig('./figures/classifyMNIST_loss1.png', format="png")
     plt.show()
     plt.close()
 
@@ -209,7 +214,7 @@ def main():
     plt.plot(range(1,len(valid_losses)+1), valid_accuracies, color='r', linestyle='dashed', label = 'validation accuracy')
     plt.legend(), plt.ylabel('accuracy'), plt.xlabel('epochs'), plt.title('Accuracy')
     
-    plt.savefig('./figures/classifyMNIST_accuracy.png', format="png")
+    plt.savefig('./figures/classifyMNIST_accuracy1.png', format="png")
     plt.show()
     plt.close()
 

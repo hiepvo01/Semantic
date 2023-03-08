@@ -230,18 +230,28 @@ Finally, now that we have discussed all details, let's implement SimCLR below as
 
 class SimCLR(pl.LightningModule):
     
-    def __init__(self, hidden_dim, lr, temperature, weight_decay, max_epochs=500):
+    def __init__(self, hidden_dim, lr, temperature, weight_decay, max_epochs=500, c_hid=32):
         super().__init__()
         self.save_hyperparameters()
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
-        self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
-        # The MLP for g(.) consists of Linear->ReLU->Linear 
-        self.convnet.fc = nn.Sequential(
-            self.convnet.fc,  # Linear(ResNet output, 4*hidden_dim)
-            nn.ReLU(inplace=True),
-            nn.Linear(4*hidden_dim, hidden_dim)
+        self.convnet = nn.Sequential(
+            nn.Conv2d(3, c_hid, kernel_size=3, padding=1, stride=2), # 32x32 => 16x16
+            nn.GELU(),
+            nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
+            nn.GELU(),
+            nn.Conv2d(c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 16x16 => 8x8
+            nn.GELU(),
+            nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1),
+            nn.GELU(),
+            nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 8x8 => 4x4
+            nn.GELU(),
+            nn.Flatten(), # Image grid to single feature vector
+            nn.Linear(2*16*c_hid, 128)
         )
+
+    def forward(self, x):
+        return self.net(x)
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), 
@@ -319,8 +329,8 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
         pl.seed_everything(42) # To be reproducable
         model = SimCLR(max_epochs=max_epochs, **kwargs)
         trainer.fit(model, train_loader, val_loader)
-        print(trainer.checkpoint_callback.best_model_path)
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
+        trainer.save_checkpoint("'./results/CIFAR10/simclrCIFAR10.ckpt")
 
     return model
 
@@ -460,6 +470,7 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
         pl.seed_everything(42)  # To be reproducable
         model = LogisticRegression(**kwargs)
         trainer.fit(model, train_loader, test_loader)
+        trainer.save_checkpoint("'./results/CIFAR10/logregCIFAR10.ckpt")
         model = LogisticRegression.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
 
     # Test best model on train and validation set
@@ -505,9 +516,9 @@ plt.title("CIFAR10 classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
+plt.savefig('./figures/CIFAR10.png', type('png'))
 plt.show()
 
-plt.savefig('figures/CIFAR10.png')
 
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')

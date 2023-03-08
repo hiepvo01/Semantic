@@ -236,13 +236,50 @@ class SimCLR(pl.LightningModule):
         self.save_hyperparameters()
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
-        self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
-        # The MLP for g(.) consists of Linear->ReLU->Linear 
-        self.convnet.fc = nn.Sequential(
-            self.convnet.fc,  # Linear(ResNet output, 4*hidden_dim)
-            nn.ReLU(inplace=True),
-            nn.Linear(4*hidden_dim, hidden_dim)
+        self.convnet = torch.nn.Sequential(
+            torch.nn.Conv2d(1, 8, 3, stride=2, padding=1),
+            torch.nn.BatchNorm2d(8),
+            torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
+            torch.nn.Conv2d(8, 8, 3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(8),
+            torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
+            torch.nn.Conv2d(8, 16, 3, stride=2, padding=1),
+            torch.nn.BatchNorm2d(16),
+            torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
+            torch.nn.Conv2d(16, 16, 3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(16),
+            torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
+            torch.nn.Conv2d(16, 32, 3, stride=2, padding=0),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
+            torch.nn.Conv2d(32, 32, 3, stride=1, padding=1),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.ReLU(True),
+            torch.nn.Dropout(p=0.2),
+            
+            torch.nn.Flatten(start_dim=1),
+            torch.nn.Linear(3 * 3 * 32, 128),
+            
+            # torch.nn.ReLU(True),
+            # torch.nn.Linear(128, 4)
         )
+        
+        self._to_linear = 128
+        
+        
+    def forward(self, x):
+        x = self.convnet(x)
+        return x
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), 
@@ -320,8 +357,9 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
         pl.seed_everything(42) # To be reproducable
         model = SimCLR(max_epochs=max_epochs, **kwargs)
         trainer.fit(model, train_loader, val_loader)
-        print(trainer.checkpoint_callback.best_model_path)
+    
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
+        trainer.save_checkpoint("'./results/CIFAR10/simclrMNIST.ckpt")
 
     return model
 
@@ -462,6 +500,8 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
         model = LogisticRegression(**kwargs)
         trainer.fit(model, train_loader, test_loader)
         model = LogisticRegression.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
+        trainer.save_checkpoint("'./results/MNIST/logregMNIST.ckpt")
+
 
     # Test best model on train and validation set
     train_result = trainer.test(model, train_loader, verbose=False)
@@ -506,9 +546,10 @@ plt.title("MNIST classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
+
+plt.savefig('figures/MNIST.png', type('png'))
 plt.show()
 
-plt.savefig('figures/MNIST.png')
 
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
