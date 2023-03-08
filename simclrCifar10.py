@@ -291,7 +291,7 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
     # Check whether pretrained model exists. If yes, load it and skip training
     pretrained_filename = os.path.join(CHECKPOINT_PATH, 'SimCLR.ckpt')
     if os.path.isfile(pretrained_filename):
-        print(f'Found pretrained model at {pretrained_filename}, loading...' % pretrained_filename)
+        print('Found pretrained model at')
         model = SimCLR.load_from_checkpoint(pretrained_filename) # Automatically loads the model with the saved hyperparameters
     else:
         train_loader = data.DataLoader(unlabeled_data, batch_size=batch_size, shuffle=True, 
