@@ -236,7 +236,7 @@ class SimCLR(pl.LightningModule):
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
         self.convnet = torch.nn.Sequential(
-            torch.nn.Conv2d(1, 8, 3, stride=2, padding=1),
+            torch.nn.Conv2d(3, 8, 3, stride=2, padding=1),
             torch.nn.BatchNorm2d(8),
             torch.nn.ReLU(True),
             torch.nn.Dropout(p=0.2),
