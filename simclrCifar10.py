@@ -320,7 +320,7 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
                                      drop_last=False, pin_memory=True, num_workers=NUM_WORKERS)
         pl.seed_everything(42) # To be reproducable
         model = SimCLR(max_epochs=max_epochs, **kwargs)
-        trainer.fit(model, train_loader, val_loader)
+        # trainer.fit(model, train_loader, val_loader)
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
 
     return model
