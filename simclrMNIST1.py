@@ -218,7 +218,7 @@ class SimCLR(pl.LightningModule):
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
         ### Convolutional section
-        self.encoder_cnn = nn.Sequential(
+        self.convnet = nn.Sequential(
             nn.Conv2d(1, 8, 3, stride=2, padding=1),
             nn.ReLU(True),
             nn.Conv2d(8, 16, 3, stride=2, padding=1),
@@ -238,7 +238,7 @@ class SimCLR(pl.LightningModule):
         )
         
     def forward(self, x):
-        x = self.encoder_cnn(x)
+        x = self.convnet(x)
         x = self.flatten(x)
         x = self.encoder_lin(x)
         return x
