@@ -69,7 +69,7 @@ import torch.optim as optim
 
 ## Torchvision
 import torchvision
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import MNIST
 from torchvision import transforms
 
 # PyTorch Lightning
@@ -83,10 +83,10 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 # Import tensorboard
 # %load_ext tensorboard
 
-# Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
+# Path to the folder where the datasets are/should be downloaded (e.g. MNIST)
 DATASET_PATH = "./data"
 # Path to the folder where the pretrained models are saved
-CHECKPOINT_PATH = "./results/CIFAR10"
+CHECKPOINT_PATH = "./results/MNIST"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
 NUM_WORKERS = os.cpu_count()
@@ -176,13 +176,14 @@ contrast_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
                                           transforms.Normalize((0.5,), (0.5,))
                                          ])
 
-"""After discussing the data augmentation techniques, we can now focus on the dataset. In this tutorial, we will use the [CIFAR10 dataset](https://cs.stanford.edu/~acoates/CIFAR10/), which, similarly to CIFAR10, contains images of 10 classes: airplane, bird, car, cat, deer, dog, horse, monkey, ship, truck. However, the images have a higher resolution, namely $96\times 96$ pixels, and we are only provided with 500 labeled images per class. Additionally, we have a much larger set of $100,000$ unlabeled images which are similar to the training images but are sampled from a wider range of animals and vehicles. This makes the dataset ideal to showcase the benefits that self-supervised learning offers.
+"""After discussing the data augmentation techniques, we can now focus on the dataset. In this tutorial, we will use the [MNIST dataset](https://cs.stanford.edu/~acoates/MNIST/), which, similarly to MNIST, contains images of 10 classes: airplane, bird, car, cat, deer, dog, horse, monkey, ship, truck. However, the images have a higher resolution, namely $96\times 96$ pixels, and we are only provided with 500 labeled images per class. Additionally, we have a much larger set of $100,000$ unlabeled images which are similar to the training images but are sampled from a wider range of animals and vehicles. This makes the dataset ideal to showcase the benefits that self-supervised learning offers.
 
-Luckily, the CIFAR10 dataset is provided through torchvision. Keep in mind, however, that since this dataset is relatively large and has a considerably higher resolution than CIFAR10, it requires more disk space (~3GB) and takes a bit of time to download. For our initial discussion of self-supervised learning and SimCLR, we will create two data loaders with our contrastive transformations above: the `unlabeled_data` will be used to train our model via contrastive learning, and `train_data_contrast` will be used as a validation set in contrastive learning.
+Luckily, the MNIST dataset is provided through torchvision. Keep in mind, however, that since this dataset is relatively large and has a considerably higher resolution than MNIST, it requires more disk space (~3GB) and takes a bit of time to download. For our initial discussion of self-supervised learning and SimCLR, we will create two data loaders with our contrastive transformations above: the `unlabeled_data` will be used to train our model via contrastive learning, and `train_data_contrast` will be used as a validation set in contrastive learning.
 """
-unlabeled_data = CIFAR10(root=DATASET_PATH, train=True, download=True, 
+
+unlabeled_data = MNIST(root=DATASET_PATH, train=True, download=True, 
                        transform=ContrastiveTransformations(contrast_transforms, n_views=2))
-train_data_contrast = CIFAR10(root=DATASET_PATH, train=False, download=True, 
+train_data_contrast = MNIST(root=DATASET_PATH, train=False, download=True, 
                             transform=ContrastiveTransformations(contrast_transforms, n_views=2))
 
 """Finally, before starting with our implementation of SimCLR, let's look at some example image pairs sampled with our augmentations:"""
@@ -195,7 +196,7 @@ img_grid = torchvision.utils.make_grid(imgs, nrow=6, normalize=True, pad_value=0
 img_grid = img_grid.permute(1, 2, 0)
 
 plt.figure(figsize=(10,5))
-plt.title('Augmented image examples of the CIFAR10 dataset')
+plt.title('Augmented image examples of the MNIST dataset')
 plt.imshow(img_grid)
 plt.axis('off')
 plt.show()
@@ -290,7 +291,7 @@ class SimCLR(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         self.info_nce_loss(batch, mode='val')
 
-"""Alternatively to performing the validation on the contrastive learning loss as well, we could also take a simple, small downstream task, and track the performance of the base network $f(\cdot)$ on that. However, in this tutorial, we will restrict ourselves to the CIFAR10 dataset where we use the task of image classification on CIFAR10 as our test task.
+"""Alternatively to performing the validation on the contrastive learning loss as well, we could also take a simple, small downstream task, and track the performance of the base network $f(\cdot)$ on that. However, in this tutorial, we will restrict ourselves to the MNIST dataset where we use the task of image classification on MNIST as our test task.
 
 ### Training
 
@@ -386,14 +387,14 @@ class LogisticRegression(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         self._calculate_loss(batch, mode='test')
 
-"""The data we use is the training and test set of CIFAR10. The training contains 500 images per class, while the test set has 800 images per class."""
+"""The data we use is the training and test set of MNIST. The training contains 500 images per class, while the test set has 800 images per class."""
 
 img_transforms = transforms.Compose([transforms.ToTensor(),
                                      transforms.Normalize((0.5,), (0.5,))])
 
-train_img_data = CIFAR10(root=DATASET_PATH, train=True, download=True,
+train_img_data = MNIST(root=DATASET_PATH, train=True, download=True,
                        transform=img_transforms)
-test_img_data = CIFAR10(root=DATASET_PATH, train=False, download=True,
+test_img_data = MNIST(root=DATASET_PATH, train=False, download=True,
                       transform=img_transforms)
 
 print("Number of training examples:", len(train_img_data))
@@ -469,7 +470,7 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
         
     return model, result
 
-"""Despite the training dataset of CIFAR10 already only having 500 labeled images per class, we will perform experiments with even smaller datasets. Specifically, we train a Logistic Regression model for datasets with only 10, 20, 50, 100, 200, and all 500 examples per class. This gives us an intuition on how well the representations learned by contrastive learning can be transfered to a image recognition task like this classification. First, let's define a function to create the intended sub-datasets from the full training set:"""
+"""Despite the training dataset of MNIST already only having 500 labeled images per class, we will perform experiments with even smaller datasets. Specifically, we train a Logistic Regression model for datasets with only 10, 20, 50, 100, 200, and all 500 examples per class. This gives us an intuition on how well the representations learned by contrastive learning can be transfered to a image recognition task like this classification. First, let's define a function to create the intended sub-datasets from the full training set:"""
 
 def get_smaller_dataset(original_dataset, num_imgs_per_label):
     new_dataset = data.TensorDataset(
@@ -501,24 +502,24 @@ fig = plt.figure(figsize=(6,4))
 plt.plot(dataset_sizes, test_scores, '--', color="#000", marker="*", markeredgecolor="#000", markerfacecolor="y", markersize=16)
 plt.xscale("log")
 plt.xticks(dataset_sizes, labels=dataset_sizes)
-plt.title("CIFAR10 classification over dataset size", fontsize=14)
+plt.title("MNIST classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
 plt.show()
 
-plt.savefig('figures/CIFAR10.png')
+plt.savefig('figures/MNIST.png')
 
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
 
-"""As one would expect, the classification performance improves the more data we have. However, with only 10 images per class, we can already classify more than 60% of the images correctly. This is quite impressive, considering that the images are also higher dimensional than e.g. CIFAR10. With the full dataset, we achieve an accuracy of 81%. The increase between 50 to 500 images per class might suggest a linear increase in performance with an exponentially larger dataset. However, with even more data, we could also finetune $f(\cdot)$ in the training process, allowing for the representations to adapt more to the specific classification task given.
+"""As one would expect, the classification performance improves the more data we have. However, with only 10 images per class, we can already classify more than 60% of the images correctly. This is quite impressive, considering that the images are also higher dimensional than e.g. MNIST. With the full dataset, we achieve an accuracy of 81%. The increase between 50 to 500 images per class might suggest a linear increase in performance with an exponentially larger dataset. However, with even more data, we could also finetune $f(\cdot)$ in the training process, allowing for the representations to adapt more to the specific classification task given.
 
 To set the results above into perspective, we will train the base network, a ResNet-18, on the classification task from scratch.
 
 ## Baseline
 
-As a baseline to our results above, we will train a standard ResNet-18 with random initialization on the labeled training set of CIFAR10. The results will give us an indication of the advantages that contrastive learning on unlabeled data has compared to using only supervised training. The implementation of the model is straightforward since the ResNet architecture is provided in the torchvision library.
+As a baseline to our results above, we will train a standard ResNet-18 with random initialization on the labeled training set of MNIST. The results will give us an indication of the advantages that contrastive learning on unlabeled data has compared to using only supervised training. The implementation of the model is straightforward since the ResNet architecture is provided in the torchvision library.
 """
 
 class ResNet(pl.LightningModule):
@@ -567,7 +568,7 @@ train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
                                        transforms.Normalize((0.5,), (0.5,))
                                        ])
 
-train_img_aug_data = CIFAR10(root=DATASET_PATH, train=True, download=True,
+train_img_aug_data = MNIST(root=DATASET_PATH, train=True, download=True,
                            transform=train_transforms)
 
 """The training function for the ResNet is almost identical to the Logistic Regression setup. Note that we allow the ResNet to perform validation every 2 epochs to also check whether the model overfits strongly in the first iterations or not."""
@@ -620,7 +621,7 @@ print(f"Accuracy on test set: {100*resnet_result['test']:4.2f}%")
 
 ## Conclusion
 
-In this tutorial, we have discussed self-supervised contrastive learning and implemented SimCLR as an example method. We have applied it to the CIFAR10 dataset and showed that it can learn generalizable representations that we can use to train simple classification models. With 500 images per label, it achieved an 8% higher accuracy than a similar model solely trained from supervision and performs on par with it when only using a tenth of the labeled data. Our experimental results are limited to a single dataset, but recent works such as [Ting Chen et al.](https://arxiv.org/abs/2006.10029) showed similar trends for larger datasets like ImageNet. Besides the discussed hyperparameters, the size of the model seems to be important in contrastive learning as well. If a lot of unlabeled data is available, larger models can achieve much stronger results and come close to their supervised baselines. Further, there are also approaches for combining contrastive and supervised learning, leading to performance gains beyond supervision (see [Khosla et al.](https://arxiv.org/abs/2004.11362)). Moreover, contrastive learning is not the only approach to self-supervised learning that has come up in the last two years and showed great results. Other methods include distillation-based methods like [BYOL](https://arxiv.org/abs/2006.07733) and redundancy reduction techniques like [Barlow Twins](https://arxiv.org/abs/2103.03230). There is a lot more to explore in the self-supervised domain, and more, impressive steps ahead are to be expected.
+In this tutorial, we have discussed self-supervised contrastive learning and implemented SimCLR as an example method. We have applied it to the MNIST dataset and showed that it can learn generalizable representations that we can use to train simple classification models. With 500 images per label, it achieved an 8% higher accuracy than a similar model solely trained from supervision and performs on par with it when only using a tenth of the labeled data. Our experimental results are limited to a single dataset, but recent works such as [Ting Chen et al.](https://arxiv.org/abs/2006.10029) showed similar trends for larger datasets like ImageNet. Besides the discussed hyperparameters, the size of the model seems to be important in contrastive learning as well. If a lot of unlabeled data is available, larger models can achieve much stronger results and come close to their supervised baselines. Further, there are also approaches for combining contrastive and supervised learning, leading to performance gains beyond supervision (see [Khosla et al.](https://arxiv.org/abs/2004.11362)). Moreover, contrastive learning is not the only approach to self-supervised learning that has come up in the last two years and showed great results. Other methods include distillation-based methods like [BYOL](https://arxiv.org/abs/2006.07733) and redundancy reduction techniques like [Barlow Twins](https://arxiv.org/abs/2103.03230). There is a lot more to explore in the self-supervised domain, and more, impressive steps ahead are to be expected.
 
 ### References
 

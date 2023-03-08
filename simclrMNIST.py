@@ -43,12 +43,13 @@ class Encoder(torch.nn.Module):
             torch.nn.Dropout(p=0.2),
             
             torch.nn.Flatten(start_dim=1),
-            # torch.nn.Linear(3 * 3 * 32, 128),
+            torch.nn.Linear(3 * 3 * 32, 128),
+            
             # torch.nn.ReLU(True),
             # torch.nn.Linear(128, 4)
         )
         
-        self._to_linear = 3 * 3 * 32
+        self._to_linear = 128
         
         
     def forward(self, x):
