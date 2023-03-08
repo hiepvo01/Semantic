@@ -52,7 +52,7 @@ class LinearClassifier(torch.nn.Module):
     def __init__(self):
         super(LinearClassifier, self).__init__()
         self.fc = torch.nn.Sequential(
-            torch.nn.Linear(7 * 7 * 128, 10),
+            torch.nn.Linear(128, 10),
             )
 
     def forward(self, x):
@@ -198,15 +198,21 @@ def main():
      
     plt.plot(range(1,len(train_losses)+1), train_losses, color='b', label = 'training loss')
     plt.plot(range(1,len(valid_losses)+1), valid_losses, color='r', linestyle='dashed', label = 'validation loss')
-    plt.legend(), plt.ylabel('loss'), plt.xlabel('epochs'), plt.title('Loss'), plt.show()
+    plt.legend(), plt.ylabel('loss'), plt.xlabel('epochs'), plt.title('Loss')
     
-    plt.savefig('./figures/classifyMNIST_loss')
+    plt.savefig('./figures/classifyMNIST_loss.png', format="png")
+    plt.show()
+    plt.close()
+
     
     plt.plot(range(1,len(train_losses)+1), train_accuracies, color='b', label = 'training accuracy')
     plt.plot(range(1,len(valid_losses)+1), valid_accuracies, color='r', linestyle='dashed', label = 'validation accuracy')
-    plt.legend(), plt.ylabel('loss'), plt.xlabel('epochs'), plt.title('Loss'), plt.show()
+    plt.legend(), plt.ylabel('accuracy'), plt.xlabel('epochs'), plt.title('Accuracy')
     
-    plt.savefig('./figures/classifyMNIST_accuracy')
+    plt.savefig('./figures/classifyMNIST_accuracy.png', format="png")
+    plt.show()
+    plt.close()
+
 
             
 if __name__ == "__main__":

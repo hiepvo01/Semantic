@@ -218,27 +218,27 @@ class SimCLR(pl.LightningModule):
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
                 
-        # self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
-        # # The MLP for g(.) consists of Linear->ReLU->Linear 
-        # self.convnet.fc = nn.Sequential(
-        #     self.convnet.fc,  # Linear(ResNet output, 4*hidden_dim)
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(4*hidden_dim, hidden_dim)
-        # )
-        
-        self.convnet = nn.Sequential(
-            nn.Conv2d(1, 8, 3, stride=2, padding=1),
-            nn.ReLU(True),
-            nn.Conv2d(8, 16, 3, stride=2, padding=1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(True),
-            nn.Conv2d(16, 32, 3, stride=2, padding=0),
-            nn.ReLU(True),
-            nn.Flatten(start_dim=1),
-            nn.Linear(3 * 3 * 32, 128),
-            nn.ReLU(True),
-            nn.Linear(128, 4)
+        self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
+        # The MLP for g(.) consists of Linear->ReLU->Linear 
+        self.convnet.fc = nn.Sequential(
+            self.convnet.fc,  # Linear(ResNet output, 4*hidden_dim)
+            nn.ReLU(inplace=True),
+            nn.Linear(4*hidden_dim, hidden_dim)
         )
+        
+        # self.convnet = nn.Sequential(
+        #     nn.Conv2d(1, 8, 3, stride=2, padding=1),
+        #     nn.ReLU(True),
+        #     nn.Conv2d(8, 16, 3, stride=2, padding=1),
+        #     nn.BatchNorm2d(16),
+        #     nn.ReLU(True),
+        #     nn.Conv2d(16, 32, 3, stride=2, padding=0),
+        #     nn.ReLU(True),
+        #     nn.Flatten(start_dim=1),
+        #     nn.Linear(3 * 3 * 32, 128),
+        #     nn.ReLU(True),
+        #     nn.Linear(128, 4)
+        # )
         
         
     def forward(self, x):
@@ -509,9 +509,11 @@ plt.title("CIFAR10 classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
+
+plt.savefig('figures/CIFAR10.png', format="png")
 plt.show()
 
-plt.savefig('figures/Cifar10.png')
+plt.show()
 
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')

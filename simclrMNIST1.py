@@ -312,7 +312,7 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
                                      drop_last=False, pin_memory=True, num_workers=NUM_WORKERS)
         pl.seed_everything(42) # To be reproducable
         model = SimCLR(max_epochs=max_epochs, **kwargs)
-        trainer.fit(model, train_loader, val_loader)
+        # trainer.fit(model, train_loader, val_loader)
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
 
     return model
@@ -326,7 +326,6 @@ simclr_model = train_simclr(batch_size=256,
                             weight_decay=1e-4, 
                             max_epochs=500)
 
-torch.save(simclr_model, 'results/MNIST/simclrMNIST.pth')
 
 """To get an intuition of how training with contrastive learning behaves, we can take a look at the TensorBoard below:"""
 
@@ -501,9 +500,10 @@ plt.title("MNIST classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
+
+plt.savefig('figures/MNIST.png', format="png")
 plt.show()
 
-plt.savefig('figures/MNIST.png')
 
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
