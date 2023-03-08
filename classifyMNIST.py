@@ -52,7 +52,7 @@ class LinearClassifier(torch.nn.Module):
     def __init__(self):
         super(LinearClassifier, self).__init__()
         self.fc = torch.nn.Sequential(
-            torch.nn.Linear(32, 10),
+            torch.nn.Linear(64, 10),
             )
 
     def forward(self, x):
@@ -105,6 +105,7 @@ def validation(epoch, model, extra, classifier, valid_loader, criterion):
                 data,labels = data.cuda(), labels.cuda()
             data, labels = torch.autograd.Variable(data,False), torch.autograd.Variable(labels)
             features = model.encoder(data)
+            print(model.encoder)
             features = extra(data)
             output = classifier(features.float())
             loss = criterion(output,labels) 
@@ -125,7 +126,7 @@ def main():
     use_scheduler = True
     head_type = 'mlp' # choose among 'mlp' and 'linear"
     method = 'SimCLR' # choose among 'SimCLR' and 'SupCon'
-    save_file = os.path.join('./results/', 'simclrMNIST1.pth')
+    save_file = os.path.join('./results/', 'simclrMNIST.pth')
     if not os.path.isdir('./results/'):
          os.makedirs('./results/')
     
@@ -198,7 +199,7 @@ def main():
                 #model.load_state_dict(torch.load('checkpoint.pt'))
                 break
     
-    save_model(classifier, optimizer, num_epochs, './results/classifyMNIST1.pth')
+    save_model(classifier, optimizer, num_epochs, './results/classifyMNIST.pth')
 
      
     plt.plot(range(1,len(train_losses)+1), train_losses, color='b', label = 'training loss')
