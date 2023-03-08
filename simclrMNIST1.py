@@ -217,33 +217,31 @@ class SimCLR(pl.LightningModule):
         self.save_hyperparameters()
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
-        self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
+        ### Convolutional section
+        self.encoder_cnn = nn.Sequential(
+            nn.Conv2d(1, 8, 3, stride=2, padding=1),
+            nn.ReLU(True),
+            nn.Conv2d(8, 16, 3, stride=2, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(True),
+            nn.Conv2d(16, 32, 3, stride=2, padding=0),
+            nn.ReLU(True)
+        )
         
-        self.convnet = torch.nn.Sequential(
+        ### Flatten layer
+        self.flatten = nn.Flatten(start_dim=1)
+        ### Linear section
+        self.encoder_lin = nn.Sequential(
+            nn.Linear(3 * 3 * 32, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 4)
+        )
         
-            torch.nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2, stride=2),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2, stride=2),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(128),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=1),
-            torch.nn.Dropout(p=0.2),
-        
-            torch.nn.Flatten(), # Image grid to single feature vector
-            )
-    
     def forward(self, x):
-        return self.convnet(x)
+        x = self.encoder_cnn(x)
+        x = self.flatten(x)
+        x = self.encoder_lin(x)
+        return x
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), 
