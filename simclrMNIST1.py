@@ -268,7 +268,7 @@ class SimCLR(pl.LightningModule):
             torch.nn.Dropout(p=0.2),
             
             torch.nn.Flatten(start_dim=1),
-            torch.nn.Linear(15488, 128),
+            torch.nn.Linear(3872, 128),
             
             # torch.nn.ReLU(True),
             # torch.nn.Linear(128, 4)
