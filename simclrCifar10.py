@@ -262,7 +262,7 @@ class SimCLR(pl.LightningModule):
     def forward(self, x):
         x = self.convnet(x)
         x = x.view(x.size(0), -1)
-        x = self.linear(x, 128)
+        x = self.linear(x, 32)
         return x
         
 
