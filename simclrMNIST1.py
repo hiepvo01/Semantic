@@ -86,7 +86,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 # Path to the folder where the datasets are/should be downloaded (e.g. MNIST)
 DATASET_PATH = "./data"
 # Path to the folder where the pretrained models are saved
-CHECKPOINT_PATH = "./results/MNIST"
+CHECKPOINT_PATH = "../results/MNIST"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
 NUM_WORKERS = os.cpu_count()
