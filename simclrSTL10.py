@@ -41,8 +41,6 @@ The general setup is that we are given a dataset of images without any labels, a
 We will now implement this framework ourselves and discuss further details along the way. Let's first start with importing our standard libraries below:
 """
 
-print('Hello')
-
 # Commented out IPython magic to ensure Python compatibility.
 ## Standard libraries
 import os
@@ -59,8 +57,6 @@ matplotlib.rcParams['lines.linewidth'] = 2.0
 import seaborn as sns
 sns.set()
 
-from util import TwoCropTransform, SupCon, SupConLoss, save_model
-
 ## tqdm for loading bars
 from tqdm.notebook import tqdm
 
@@ -73,7 +69,7 @@ import torch.optim as optim
 
 ## Torchvision
 import torchvision
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import STL10
 from torchvision import transforms
 
 # PyTorch Lightning
@@ -90,7 +86,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
 DATASET_PATH = "./data"
 # Path to the folder where the pretrained models are saved
-CHECKPOINT_PATH = "./results/cifar10"
+CHECKPOINT_PATH = "./results/STL10"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
 NUM_WORKERS = os.cpu_count()
@@ -106,8 +102,32 @@ device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("
 print("Device:", device)
 print("Number of workers:", NUM_WORKERS)
 
+"""As in many tutorials before, we provide pre-trained models. Note that those models are slightly larger as normal (~100MB overall) since we use the default ResNet-18 architecture. If you are running this notebook locally, make sure to have sufficient disk space available."""
+
+import urllib.request
+from urllib.error import HTTPError
+# Github URL where saved models are stored for this tutorial
+base_url = "https://raw.githubusercontent.com/phlippe/saved_models/main/tutorial17/"
+# Files to download
+pretrained_files = ["SimCLR.ckpt", "ResNet.ckpt",
+                    "tensorboards/SimCLR/events.out.tfevents.SimCLR",
+                    "tensorboards/classification/ResNet/events.out.tfevents.ResNet"]
+pretrained_files += [f"LogisticRegression_{size}.ckpt" for size in [10, 20, 50, 100, 200, 500]]
 # Create checkpoint path if it doesn't exist yet
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
+
+# For each file, check whether it already exists. If not, try downloading it.
+for file_name in pretrained_files:
+    file_path = os.path.join(CHECKPOINT_PATH, file_name)
+    if "/" in file_name:
+        os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
+    if not os.path.isfile(file_path):
+        file_url = base_url + file_name
+        print(f"Downloading {file_url}...")
+        try:
+            urllib.request.urlretrieve(file_url, file_path)
+        except HTTPError as e:
+            print("Something went wrong. Please try to download the file from the GDrive folder, or contact the author with the full output including the following error:\n", e)
 
 """## SimCLR
 
@@ -143,7 +163,7 @@ Overall, for our experiments, we apply a set of 5 transformations following the 
 """
 
 contrast_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
-                                          transforms.RandomResizedCrop(size=32),
+                                          transforms.RandomResizedCrop(size=96),
                                           transforms.RandomApply([
                                               transforms.ColorJitter(brightness=0.5, 
                                                                      contrast=0.5, 
@@ -156,15 +176,14 @@ contrast_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
                                           transforms.Normalize((0.5,), (0.5,))
                                          ])
 
-"""After discussing the data augmentation techniques, we can now focus on the dataset. In this tutorial, we will use the [CIFAR10 dataset](https://cs.stanford.edu/~acoates/stl10/), which, similarly to CIFAR10, contains images of 10 classes: airplane, bird, car, cat, deer, dog, horse, monkey, ship, truck. However, the images have a higher resolution, namely $32\times 32$ pixels, and we are only provided with 500 labeled images per class. Additionally, we have a much larger set of $100,000$ unlabeled images which are similar to the training images but are sampled from a wider range of animals and vehicles. This makes the dataset ideal to showcase the benefits that self-supervised learning offers.
+"""After discussing the data augmentation techniques, we can now focus on the dataset. In this tutorial, we will use the [STL10 dataset](https://cs.stanford.edu/~acoates/stl10/), which, similarly to CIFAR10, contains images of 10 classes: airplane, bird, car, cat, deer, dog, horse, monkey, ship, truck. However, the images have a higher resolution, namely $96\times 96$ pixels, and we are only provided with 500 labeled images per class. Additionally, we have a much larger set of $100,000$ unlabeled images which are similar to the training images but are sampled from a wider range of animals and vehicles. This makes the dataset ideal to showcase the benefits that self-supervised learning offers.
 
-Luckily, the CIFAR10 dataset is provided through torchvision. Keep in mind, however, that since this dataset is relatively large and has a considerably higher resolution than CIFAR10, it requires more disk space (~3GB) and takes a bit of time to download. For our initial discussion of self-supervised learning and SimCLR, we will create two data loaders with our contrastive transformations above: the `unlabeled_data` will be used to train our model via contrastive learning, and `train_data_contrast` will be used as a validation set in contrastive learning.
+Luckily, the STL10 dataset is provided through torchvision. Keep in mind, however, that since this dataset is relatively large and has a considerably higher resolution than CIFAR10, it requires more disk space (~3GB) and takes a bit of time to download. For our initial discussion of self-supervised learning and SimCLR, we will create two data loaders with our contrastive transformations above: the `unlabeled_data` will be used to train our model via contrastive learning, and `train_data_contrast` will be used as a validation set in contrastive learning.
 """
 
-unlabeled_data = CIFAR10(root=DATASET_PATH, train=True, download=True, 
+unlabeled_data = STL10(root=DATASET_PATH, split='unlabeled', download=True, 
                        transform=ContrastiveTransformations(contrast_transforms, n_views=2))
-
-train_data_contrast = CIFAR10(root=DATASET_PATH, train=False, download=True, 
+train_data_contrast = STL10(root=DATASET_PATH, split='train', download=True, 
                             transform=ContrastiveTransformations(contrast_transforms, n_views=2))
 
 """Finally, before starting with our implementation of SimCLR, let's look at some example image pairs sampled with our augmentations:"""
@@ -177,7 +196,7 @@ img_grid = torchvision.utils.make_grid(imgs, nrow=6, normalize=True, pad_value=0
 img_grid = img_grid.permute(1, 2, 0)
 
 plt.figure(figsize=(10,5))
-plt.title('Augmented image examples of the CIFAR10 dataset')
+plt.title('Augmented image examples of the STL10 dataset')
 plt.imshow(img_grid)
 plt.axis('off')
 plt.show()
@@ -272,7 +291,7 @@ class SimCLR(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         self.info_nce_loss(batch, mode='val')
 
-"""Alternatively to performing the validation on the contrastive learning loss as well, we could also take a simple, small downstream task, and track the performance of the base network $f(\cdot)$ on that. However, in this tutorial, we will restrict ourselves to the CIFAR10 dataset where we use the task of image classification on CIFAR10 as our test task.
+"""Alternatively to performing the validation on the contrastive learning loss as well, we could also take a simple, small downstream task, and track the performance of the base network $f(\cdot)$ on that. However, in this tutorial, we will restrict ourselves to the STL10 dataset where we use the task of image classification on STL10 as our test task.
 
 ### Training
 
@@ -291,7 +310,7 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
     # Check whether pretrained model exists. If yes, load it and skip training
     pretrained_filename = os.path.join(CHECKPOINT_PATH, 'SimCLR.ckpt')
     if os.path.isfile(pretrained_filename):
-        print(f'Found pretrained model at {pretrained_filename}, loading...'% pretrained_filename)
+        print(f'Found pretrained model at {pretrained_filename}, loading...')
         model = SimCLR.load_from_checkpoint(pretrained_filename) # Automatically loads the model with the saved hyperparameters
     else:
         train_loader = data.DataLoader(unlabeled_data, batch_size=batch_size, shuffle=True, 
@@ -313,8 +332,6 @@ simclr_model = train_simclr(batch_size=256,
                             temperature=0.07, 
                             weight_decay=1e-4, 
                             max_epochs=500)
-
-torch.save(simclr_model, 'results/cifar10/simclrCifar10.pth')
 
 """To get an intuition of how training with contrastive learning behaves, we can take a look at the TensorBoard below:"""
 
@@ -369,14 +386,14 @@ class LogisticRegression(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         self._calculate_loss(batch, mode='test')
 
-"""The data we use is the training and test set of CIFAR10. The training contains 500 images per class, while the test set has 800 images per class."""
+"""The data we use is the training and test set of STL10. The training contains 500 images per class, while the test set has 800 images per class."""
 
 img_transforms = transforms.Compose([transforms.ToTensor(),
                                      transforms.Normalize((0.5,), (0.5,))])
 
-train_img_data = CIFAR10(root=DATASET_PATH, train=True, download=True,
+train_img_data = STL10(root=DATASET_PATH, split='train', download=True,
                        transform=img_transforms)
-test_img_data = CIFAR10(root=DATASET_PATH, train=False, download=True,
+test_img_data = STL10(root=DATASET_PATH, split='test', download=True,
                       transform=img_transforms)
 
 print("Number of training examples:", len(train_img_data))
@@ -452,7 +469,7 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
         
     return model, result
 
-"""Despite the training dataset of CIFAR10 already only having 500 labeled images per class, we will perform experiments with even smaller datasets. Specifically, we train a Logistic Regression model for datasets with only 10, 20, 50, 100, 200, and all 500 examples per class. This gives us an intuition on how well the representations learned by contrastive learning can be transfered to a image recognition task like this classification. First, let's define a function to create the intended sub-datasets from the full training set:"""
+"""Despite the training dataset of STL10 already only having 500 labeled images per class, we will perform experiments with even smaller datasets. Specifically, we train a Logistic Regression model for datasets with only 10, 20, 50, 100, 200, and all 500 examples per class. This gives us an intuition on how well the representations learned by contrastive learning can be transfered to a image recognition task like this classification. First, let's define a function to create the intended sub-datasets from the full training set:"""
 
 def get_smaller_dataset(original_dataset, num_imgs_per_label):
     new_dataset = data.TensorDataset(
@@ -463,7 +480,7 @@ def get_smaller_dataset(original_dataset, num_imgs_per_label):
 """Next, let's run all models. Despite us training 6 models, this cell could be run within a minute or two without the pretrained models. """
 
 results = {}
-for num_imgs_per_label in [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]:
+for num_imgs_per_label in [10, 20, 50, 100, 200, 500]:
     sub_train_set = get_smaller_dataset(train_feats_simclr, num_imgs_per_label)
     _, small_set_results = train_logreg(batch_size=64,
                                         train_feats_data=sub_train_set,
@@ -473,7 +490,6 @@ for num_imgs_per_label in [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]:
                                         num_classes=10,
                                         lr=1e-3,
                                         weight_decay=1e-3)
-    
     results[num_imgs_per_label] = small_set_results
 
 """Finally, let's plot the results."""
@@ -485,13 +501,11 @@ fig = plt.figure(figsize=(6,4))
 plt.plot(dataset_sizes, test_scores, '--', color="#000", marker="*", markeredgecolor="#000", markerfacecolor="y", markersize=16)
 plt.xscale("log")
 plt.xticks(dataset_sizes, labels=dataset_sizes)
-plt.title("CIFAR10 classification over dataset size", fontsize=14)
+plt.title("STL10 classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
 plt.show()
-
-plt.savefig('figures/Cifar10.png')
 
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
@@ -502,7 +516,7 @@ To set the results above into perspective, we will train the base network, a Res
 
 ## Baseline
 
-As a baseline to our results above, we will train a standard ResNet-18 with random initialization on the labeled training set of CIFAR10. The results will give us an indication of the advantages that contrastive learning on unlabeled data has compared to using only supervised training. The implementation of the model is straightforward since the ResNet architecture is provided in the torchvision library.
+As a baseline to our results above, we will train a standard ResNet-18 with random initialization on the labeled training set of STL10. The results will give us an indication of the advantages that contrastive learning on unlabeled data has compared to using only supervised training. The implementation of the model is straightforward since the ResNet architecture is provided in the torchvision library.
 """
 
 class ResNet(pl.LightningModule):
@@ -544,14 +558,14 @@ class ResNet(pl.LightningModule):
 """It is clear that the ResNet easily overfits on the training data since its parameter count is more than 1000 times larger than the dataset size. To make the comparison to the contrastive learning models fair, we apply data augmentations similar to the ones we used before: horizontal flip, crop-and-resize, grayscale, and gaussian blur. Color distortions as before are not used because the color distribution of an image showed to be an important feature for the classification. Hence, we observed no noticeable performance gains when adding color distortions to the set of augmentations. Similarly, we restrict the resizing operation before cropping to the max. 125% of its original resolution, instead of 1250% as done in SimCLR. This is because, for classification, the model needs to recognize the full object, while in contrastive learning, we only want to check whether two patches belong to the same image/object. Hence, the chosen augmentations below are overall weaker than in the contrastive learning case."""
 
 train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
-                                       transforms.RandomResizedCrop(size=32, scale=(0.8, 1.0)),
+                                       transforms.RandomResizedCrop(size=96, scale=(0.8, 1.0)),
                                        transforms.RandomGrayscale(p=0.2),
                                        transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 0.5)),
                                        transforms.ToTensor(),
                                        transforms.Normalize((0.5,), (0.5,))
                                        ])
 
-train_img_aug_data = CIFAR10(root=DATASET_PATH, train=True, download=True,
+train_img_aug_data = STL10(root=DATASET_PATH, split='train', download=True,
                            transform=train_transforms)
 
 """The training function for the ResNet is almost identical to the Logistic Regression setup. Note that we allow the ResNet to perform validation every 2 epochs to also check whether the model overfits strongly in the first iterations or not."""
@@ -604,7 +618,7 @@ print(f"Accuracy on test set: {100*resnet_result['test']:4.2f}%")
 
 ## Conclusion
 
-In this tutorial, we have discussed self-supervised contrastive learning and implemented SimCLR as an example method. We have applied it to the CIFAR10 dataset and showed that it can learn generalizable representations that we can use to train simple classification models. With 500 images per label, it achieved an 8% higher accuracy than a similar model solely trained from supervision and performs on par with it when only using a tenth of the labeled data. Our experimental results are limited to a single dataset, but recent works such as [Ting Chen et al.](https://arxiv.org/abs/2006.10029) showed similar trends for larger datasets like ImageNet. Besides the discussed hyperparameters, the size of the model seems to be important in contrastive learning as well. If a lot of unlabeled data is available, larger models can achieve much stronger results and come close to their supervised baselines. Further, there are also approaches for combining contrastive and supervised learning, leading to performance gains beyond supervision (see [Khosla et al.](https://arxiv.org/abs/2004.11362)). Moreover, contrastive learning is not the only approach to self-supervised learning that has come up in the last two years and showed great results. Other methods include distillation-based methods like [BYOL](https://arxiv.org/abs/2006.07733) and redundancy reduction techniques like [Barlow Twins](https://arxiv.org/abs/2103.03230). There is a lot more to explore in the self-supervised domain, and more, impressive steps ahead are to be expected.
+In this tutorial, we have discussed self-supervised contrastive learning and implemented SimCLR as an example method. We have applied it to the STL10 dataset and showed that it can learn generalizable representations that we can use to train simple classification models. With 500 images per label, it achieved an 8% higher accuracy than a similar model solely trained from supervision and performs on par with it when only using a tenth of the labeled data. Our experimental results are limited to a single dataset, but recent works such as [Ting Chen et al.](https://arxiv.org/abs/2006.10029) showed similar trends for larger datasets like ImageNet. Besides the discussed hyperparameters, the size of the model seems to be important in contrastive learning as well. If a lot of unlabeled data is available, larger models can achieve much stronger results and come close to their supervised baselines. Further, there are also approaches for combining contrastive and supervised learning, leading to performance gains beyond supervision (see [Khosla et al.](https://arxiv.org/abs/2004.11362)). Moreover, contrastive learning is not the only approach to self-supervised learning that has come up in the last two years and showed great results. Other methods include distillation-based methods like [BYOL](https://arxiv.org/abs/2006.07733) and redundancy reduction techniques like [Barlow Twins](https://arxiv.org/abs/2103.03230). There is a lot more to explore in the self-supervised domain, and more, impressive steps ahead are to be expected.
 
 ### References
 
