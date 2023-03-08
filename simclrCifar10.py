@@ -435,7 +435,7 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
                                   drop_last=False, pin_memory=True, num_workers=0)
 
     # Check whether pretrained model exists. If yes, load it and skip training
-    pretrained_filename = os.path.join(CHECKPOINT_PATH, f"LogisticRegression_{model_suffix}.ckpt")
+    pretrained_filename = ''
     if os.path.isfile(pretrained_filename):
         print(f"Found pretrained model at {pretrained_filename}, loading...")
         model = LogisticRegression.load_from_checkpoint(pretrained_filename)
