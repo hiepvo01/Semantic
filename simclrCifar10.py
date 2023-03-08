@@ -237,15 +237,26 @@ class SimCLR(pl.LightningModule):
         # Base model f(.)
         self.convnet = nn.Sequential(
             nn.Conv2d(3, c_hid, kernel_size=3, padding=1, stride=2), # 32x32 => 16x16
+            torch.nn.BatchNorm2d(c_hid),
             nn.GELU(),
+            torch.nn.Dropout(p=0.2),
             nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
+            torch.nn.BatchNorm2d(c_hid),
             nn.GELU(),
+            torch.nn.Dropout(p=0.2),
             nn.Conv2d(c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 16x16 => 8x8
+            torch.nn.BatchNorm2d(c_hid*2),
             nn.GELU(),
+            torch.nn.Dropout(p=0.2),
             nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1),
+            torch.nn.BatchNorm2d(c_hid*2),
             nn.GELU(),
+            torch.nn.Dropout(p=0.2),
             nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 8x8 => 4x4
+            torch.nn.BatchNorm2d(c_hid*2),
             nn.GELU(),
+            torch.nn.Dropout(p=0.2),
+            nn.Flatten(), # Image grid to single feature vector
         )
 
     def forward(self, x):

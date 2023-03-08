@@ -266,7 +266,8 @@ class SimCLR(pl.LightningModule):
             torch.nn.BatchNorm2d(32),
             torch.nn.ReLU(True),
             torch.nn.Dropout(p=0.2),
-            )
+            nn.Flatten(), # Image grid to single feature vector
+        )
 
     def forward(self, x):
         x = self.convnet(x)
