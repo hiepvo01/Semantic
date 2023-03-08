@@ -59,6 +59,8 @@ matplotlib.rcParams['lines.linewidth'] = 2.0
 import seaborn as sns
 sns.set()
 
+from util import TwoCropTransform, SupCon, SupConLoss, save_model
+
 ## tqdm for loading bars
 from tqdm.notebook import tqdm
 
@@ -86,9 +88,9 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 # %load_ext tensorboard
 
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
-DATASET_PATH = "../data"
+DATASET_PATH = "./data"
 # Path to the folder where the pretrained models are saved
-CHECKPOINT_PATH = "../saved_models/cifar10"
+CHECKPOINT_PATH = "./results/cifar10"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
 NUM_WORKERS = os.cpu_count()
@@ -312,6 +314,8 @@ simclr_model = train_simclr(batch_size=256,
                             weight_decay=1e-4, 
                             max_epochs=500)
 
+torch.save(simclr_model, 'results/cifar10/simclrCifar10.pth')
+
 """To get an intuition of how training with contrastive learning behaves, we can take a look at the TensorBoard below:"""
 
 # Commented out IPython magic to ensure Python compatibility.
@@ -459,7 +463,7 @@ def get_smaller_dataset(original_dataset, num_imgs_per_label):
 """Next, let's run all models. Despite us training 6 models, this cell could be run within a minute or two without the pretrained models. """
 
 results = {}
-for num_imgs_per_label in [10, 20, 50, 100, 200, 500, 1000, 2000]:
+for num_imgs_per_label in [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]:
     sub_train_set = get_smaller_dataset(train_feats_simclr, num_imgs_per_label)
     _, small_set_results = train_logreg(batch_size=64,
                                         train_feats_data=sub_train_set,
@@ -485,6 +489,8 @@ plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
 plt.show()
+
+plt.savefig('figures/Cifar10.png')
 
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
