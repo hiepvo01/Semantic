@@ -225,8 +225,8 @@ class SimCLR(pl.LightningModule):
             nn.BatchNorm2d(16),
             nn.ReLU(True),
             nn.Conv2d(16, 32, 3, stride=2, padding=0),
-            nn.ReLU(True)
-            nn.Flatten(start_dim=1)
+            nn.ReLU(True),
+            nn.Flatten(start_dim=1),
             nn.Linear(3 * 3 * 32, 128),
             nn.ReLU(True),
             nn.Linear(128, 4)
