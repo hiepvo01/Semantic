@@ -42,8 +42,6 @@ We will now implement this framework ourselves and discuss further details along
 """
 
 print('Hello')
-import matplotlib as mpl
-mpl.use('Agg')
 
 # Commented out IPython magic to ensure Python compatibility.
 ## Standard libraries
@@ -293,7 +291,7 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
     # Check whether pretrained model exists. If yes, load it and skip training
     pretrained_filename = os.path.join(CHECKPOINT_PATH, 'SimCLR.ckpt')
     if os.path.isfile(pretrained_filename):
-        print("Found pretrained model at %s, loading..." % pretrained_filename)
+        print(f'Found pretrained model at {pretrained_filename}, loading...'% pretrained_filename)
         model = SimCLR.load_from_checkpoint(pretrained_filename) # Automatically loads the model with the saved hyperparameters
     else:
         train_loader = data.DataLoader(unlabeled_data, batch_size=batch_size, shuffle=True, 
@@ -437,9 +435,9 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
                                   drop_last=False, pin_memory=True, num_workers=0)
 
     # Check whether pretrained model exists. If yes, load it and skip training
-    pretrained_filename = ''
+    pretrained_filename = os.path.join(CHECKPOINT_PATH, f"LogisticRegression_{model_suffix}.ckpt")
     if os.path.isfile(pretrained_filename):
-        print("Found pretrained model at %s, loading..." % pretrained_filename)
+        print(f"Found pretrained model at {pretrained_filename}, loading...")
         model = LogisticRegression.load_from_checkpoint(pretrained_filename)
     else:
         pl.seed_everything(42)  # To be reproducable
@@ -495,7 +493,7 @@ plt.show()
 plt.savefig('figures/Cifar10.png')
 
 for k, score in zip(dataset_sizes, test_scores):
-    print("Test accuracy for " + str(k) + " images per label: " + str(100*score) +" %")
+    print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
 
 """As one would expect, the classification performance improves the more data we have. However, with only 10 images per class, we can already classify more than 60% of the images correctly. This is quite impressive, considering that the images are also higher dimensional than e.g. CIFAR10. With the full dataset, we achieve an accuracy of 81%. The increase between 50 to 500 images per class might suggest a linear increase in performance with an exponentially larger dataset. However, with even more data, we could also finetune $f(\cdot)$ in the training process, allowing for the representations to adapt more to the specific classification task given.
 
@@ -598,8 +596,8 @@ resnet_model, resnet_result = train_resnet(batch_size=64,
                                            lr=1e-3,
                                            weight_decay=2e-4,
                                            max_epochs=100)
-print("Accuracy on training set: "+str(100*resnet_result['train']) + " %")
-print("Accuracy on testing set: "+str(100*resnet_result['test']) + " %")
+print(f"Accuracy on training set: {100*resnet_result['train']:4.2f}%")
+print(f"Accuracy on test set: {100*resnet_result['test']:4.2f}%")
 
 """The ResNet trained from scratch achieves 73.31% on the test set. This is almost 8% less than the contrastive learning model, and even slightly less than SimCLR achieves with 1/10 of the data. This shows that self-supervised, contrastive learning provides considerable performance gains by leveraging large amounts of unlabeled data when little labeled data is available.
 
