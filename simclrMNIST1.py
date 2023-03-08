@@ -351,7 +351,7 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
         pl.seed_everything(42) # To be reproducable
         model = SimCLR(max_epochs=max_epochs, **kwargs)
         # trainer.fit(model, train_loader, val_loader)
-    
+        print(trainer.trainer.checkpoint_callback.best_model_path)
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
         trainer.save_checkpoint("'./results/CIFAR10/simclrMNIST.ckpt")
 
