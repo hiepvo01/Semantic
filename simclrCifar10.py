@@ -596,8 +596,8 @@ resnet_model, resnet_result = train_resnet(batch_size=64,
                                            lr=1e-3,
                                            weight_decay=2e-4,
                                            max_epochs=100)
-print(f"Accuracy on training set: {100*resnet_result['train']:4.2f}%")
-print(f"Accuracy on test set: {100*resnet_result['test']:4.2f}%")
+print("Accuracy on training set: "+str(100*resnet_result['train']) + " %")
+print("Accuracy on testing set: "+str(100*resnet_result['test']) + " %")
 
 """The ResNet trained from scratch achieves 73.31% on the test set. This is almost 8% less than the contrastive learning model, and even slightly less than SimCLR achieves with 1/10 of the data. This shows that self-supervised, contrastive learning provides considerable performance gains by leveraging large amounts of unlabeled data when little labeled data is available.
 
