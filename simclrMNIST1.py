@@ -321,11 +321,8 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
         pl.seed_everything(42) # To be reproducable
         model = SimCLR(max_epochs=max_epochs, **kwargs)
         trainer.fit(model, train_loader, val_loader)
-        torch.save(
-            model.input_embeddings.state_dict(),
-            "simclrMNIST_input_embeddings.pt"
-        )
-        torch.save(model.mlp.state_dict(), "simclrMNIST.pt")
+
+        torch.save(model.convnet.state_dict(), "simclrMNIST.pt")
         
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
         trainer.save_checkpoint("'./results/MNIST/simclrMNIST.ckpt")
@@ -468,11 +465,8 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
         pl.seed_everything(42)  # To be reproducable
         model = LogisticRegression(**kwargs)
         trainer.fit(model, train_loader, test_loader)
-        torch.save(
-            model.input_embeddings.state_dict(),
-            "logregMNIST_input_embeddings.pt"
-        )
-        torch.save(model.mlp.state_dict(), "logregMNIST.pt")
+        
+        torch.save(model.model.state_dict(), "logregMNIST.pt")
         trainer.save_checkpoint("'./results/MNIST/logregMNIST.ckpt")
         model = LogisticRegression.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
 
