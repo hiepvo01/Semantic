@@ -164,13 +164,13 @@ Overall, for our experiments, we apply a set of 5 transformations following the 
 
 contrast_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
                                           transforms.RandomResizedCrop(size=96),
-                                          transforms.RandomApply([
-                                              transforms.ColorJitter(brightness=0.5, 
-                                                                     contrast=0.5, 
-                                                                     saturation=0.5, 
-                                                                     hue=0.1)
-                                          ], p=0.8),
-                                          transforms.RandomGrayscale(p=0.2),
+                                        #   transforms.RandomApply([
+                                        #       transforms.ColorJitter(brightness=0.5, 
+                                        #                              contrast=0.5, 
+                                        #                              saturation=0.5, 
+                                        #                              hue=0.1)
+                                        #   ], p=0.8),
+                                        #   transforms.RandomGrayscale(p=0.2),
                                           transforms.GaussianBlur(kernel_size=9),
                                           transforms.ToTensor(),
                                           transforms.Normalize((0.5,), (0.5,))
@@ -236,6 +236,8 @@ class SimCLR(pl.LightningModule):
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
         self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
+        self.convnet.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+
         # The MLP for g(.) consists of Linear->ReLU->Linear 
         self.convnet.fc = nn.Sequential(
             self.convnet.fc,  # Linear(ResNet output, 4*hidden_dim)
