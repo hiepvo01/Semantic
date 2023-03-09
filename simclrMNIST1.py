@@ -198,6 +198,7 @@ plt.figure(figsize=(10,5))
 plt.title('Augmented image examples of the MNIST dataset')
 plt.imshow(img_grid)
 plt.axis('off')
+plt.savefig('./figures/MNIST.png', format="png")
 plt.show()
 plt.close()
 
