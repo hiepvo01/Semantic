@@ -54,11 +54,7 @@ class Encoder(torch.nn.Module):
             torch.nn.BatchNorm2d(32),
             torch.nn.ReLU(True),
             
-            torch.nn.Flatten(start_dim=1),
-            torch.nn.Linear(3 * 3 * 32, 128),
-            
-            # torch.nn.ReLU(True),
-            # torch.nn.Linear(128, 4)
+            torch.nn.Flatten(),
         )
         
         self._to_linear = 128
@@ -66,6 +62,8 @@ class Encoder(torch.nn.Module):
         
     def forward(self, x):
         x = self.convnet(x)
+        x = x.view(x.size(0), -1)
+        x = self.linear(x, 128)
         return x
 
 def pretraining(epoch, model, contrastive_loader, optimizer, criterion, method='SimCLR'):

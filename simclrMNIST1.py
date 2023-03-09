@@ -180,7 +180,6 @@ contrast_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
 
 Luckily, the MNIST dataset is provided through torchvision. Keep in mind, however, that since this dataset is relatively large and has a considerably higher resolution than MNIST, it requires more disk space (~3GB) and takes a bit of time to download. For our initial discussion of self-supervised learning and SimCLR, we will create two data loaders with our contrastive transformations above: the `unlabeled_data` will be used to train our model via contrastive learning, and `train_data_contrast` will be used as a validation set in contrastive learning.
 """
-
 unlabeled_data = MNIST(root=DATASET_PATH, train=True, download=True, 
                        transform=ContrastiveTransformations(contrast_transforms, n_views=2))
 train_data_contrast = MNIST(root=DATASET_PATH, train=False, download=True, 
@@ -231,49 +230,18 @@ Finally, now that we have discussed all details, let's implement SimCLR below as
 
 class SimCLR(pl.LightningModule):
     
-    def __init__(self, hidden_dim, lr, temperature, weight_decay, max_epochs=500):
+    def __init__(self, hidden_dim, lr, temperature, weight_decay, max_epochs=500, c_hid=32):
         super().__init__()
         self.save_hyperparameters()
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
-        self.convnet = torch.nn.Sequential(
-            torch.nn.Conv2d(1, 8, 3, stride=2, padding=1),
-            torch.nn.BatchNorm2d(8),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(8, 8, 3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(8),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(8, 16, 3, stride=2, padding=1),
-            torch.nn.BatchNorm2d(16),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(16, 16, 3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(16),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(16, 32, 3, stride=2, padding=0),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(32, 32, 3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            nn.Flatten(), # Image grid to single feature vector
+        self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
+        # The MLP for g(.) consists of Linear->ReLU->Linear 
+        self.convnet.fc = nn.Sequential(
+            self.convnet.fc,  # Linear(ResNet output, 4*hidden_dim)
+            nn.ReLU(inplace=True),
+            nn.Linear(4*hidden_dim, hidden_dim)
         )
-
-    def forward(self, x):
-        x = self.convnet(x)
-        x = x.view(x.size(0), -1)
-        x = self.linear(x, 128)
-        return x
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), 
@@ -351,9 +319,8 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
         pl.seed_everything(42) # To be reproducable
         model = SimCLR(max_epochs=max_epochs, **kwargs)
         trainer.fit(model, train_loader, val_loader)
-        print(trainer.checkpoint_callback.best_model_path)
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
-        trainer.save_checkpoint("'./results/CIFAR10/simclrMNIST.ckpt")
+        trainer.save_checkpoint("'./results/MNIST/simclrMNIST.ckpt")
 
     return model
 
@@ -493,10 +460,8 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
         pl.seed_everything(42)  # To be reproducable
         model = LogisticRegression(**kwargs)
         trainer.fit(model, train_loader, test_loader)
-        print(trainer.checkpoint_callback.best_model_path)
+        trainer.save_checkpoint("'./results/MNIST/logregMNIST.ckpt")
         model = LogisticRegression.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
-        trainer.save_checkpoint("./results/MNIST/logregMNIST.ckpt")
-
 
     # Test best model on train and validation set
     train_result = trainer.test(model, train_loader, verbose=False)
@@ -541,8 +506,7 @@ plt.title("MNIST classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
-
-plt.savefig('figures/MNIST.png', format="png")
+plt.savefig('./figures/MNIST.png', format="png")
 plt.show()
 
 

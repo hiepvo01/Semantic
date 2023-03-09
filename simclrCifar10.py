@@ -235,47 +235,13 @@ class SimCLR(pl.LightningModule):
         self.save_hyperparameters()
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
-        self.convnet = torch.nn.Sequential(
-            torch.nn.Conv2d(3, 8, 3, stride=2, padding=1),
-            torch.nn.BatchNorm2d(8),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(8, 8, 3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(8),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(8, 16, 3, stride=2, padding=1),
-            torch.nn.BatchNorm2d(16),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(16, 16, 3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(16),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(16, 32, 3, stride=2, padding=0),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            
-            torch.nn.Conv2d(32, 32, 3, stride=1, padding=1),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.ReLU(True),
-            torch.nn.Dropout(p=0.2),
-            nn.Flatten(), # Image grid to single feature vector
+        self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
+        # The MLP for g(.) consists of Linear->ReLU->Linear 
+        self.convnet.fc = nn.Sequential(
+            self.convnet.fc,  # Linear(ResNet output, 4*hidden_dim)
+            nn.ReLU(inplace=True),
+            nn.Linear(4*hidden_dim, hidden_dim)
         )
-
-    def forward(self, x):
-        x = self.convnet(x)
-        x = x.view(x.size(0), -1)
-        x = self.linear(x, 128)
-        return x
-    
-
-        
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), 
