@@ -297,6 +297,7 @@ plt.minorticks_off()
 plt.savefig('./figures/CIFAR10test.png', format="png")
 plt.show()
 
+dataset_sizes = sorted([k for k in results])
 train_scores = [results[k]["train"] for k in dataset_sizes]
 
 fig = plt.figure(figsize=(6,4))
