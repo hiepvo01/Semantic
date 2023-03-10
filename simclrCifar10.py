@@ -336,7 +336,7 @@ simclr_model = train_simclr(batch_size=256,
                             lr=5e-4, 
                             temperature=0.07, 
                             weight_decay=1e-4, 
-                            max_epochs=100)
+                            max_epochs=500)
 
 """To get an intuition of how training with contrastive learning behaves, we can take a look at the TensorBoard below:"""
 

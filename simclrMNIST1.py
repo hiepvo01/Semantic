@@ -92,7 +92,7 @@ DATASET_PATH = "./data"
 CHECKPOINT_PATH = "../results/MNIST"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
-NUM_WORKERS = os.cpu_count()
+NUM_WORKERS = os.cpu_count() / 2
 
 # Setting the seed
 pl.seed_everything(42)
@@ -623,7 +623,7 @@ resnet_model, resnet_result = train_resnet(batch_size=64,
                                            num_classes=10,
                                            lr=1e-3,
                                            weight_decay=2e-4,
-                                           max_epochs=100)
+                                           max_epochs=500)
 print(f"Accuracy on training set: {100*resnet_result['train']:4.2f}%")
 print(f"Accuracy on test set: {100*resnet_result['test']:4.2f}%")
 
