@@ -505,10 +505,22 @@ plt.title("STL10 classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
+plt.savefig('./figures/STL10test.png', format="png")
 plt.show()
 
-plt.savefig('figures/STL10.png')
+dataset_sizes = sorted([k for k in results])
+train_scores = [results[k]["train"] for k in dataset_sizes]
 
+fig = plt.figure(figsize=(6,4))
+plt.plot(dataset_sizes, train_scores, '--', color="#000", marker="*", markeredgecolor="#000", markerfacecolor="y", markersize=16)
+plt.xscale("log")
+plt.xticks(dataset_sizes, labels=dataset_sizes)
+plt.title("CIFAR10 classification over dataset size", fontsize=14)
+plt.xlabel("Number of images per class")
+plt.ylabel("Train accuracy")
+plt.minorticks_off()
+plt.savefig('./figures/STL10train.png', format="png")
+plt.show()
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
 
