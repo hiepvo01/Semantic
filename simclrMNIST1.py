@@ -92,7 +92,7 @@ DATASET_PATH = "./data"
 CHECKPOINT_PATH = "../results/MNIST"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
-NUM_WORKERS = os.cpu_count() / 2
+NUM_WORKERS = os.cpu_count()
 
 # Setting the seed
 pl.seed_everything(42)
