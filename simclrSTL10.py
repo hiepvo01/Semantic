@@ -523,6 +523,8 @@ plt.savefig('./figures/STL10train.png', format="png")
 plt.show()
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
+for k, score in zip(dataset_sizes, train_scores):
+    print(f'Train accuracy for {k:3d} images per label: {100*score:4.2f}%')
 
 """As one would expect, the classification performance improves the more data we have. However, with only 10 images per class, we can already classify more than 60% of the images correctly. This is quite impressive, considering that the images are also higher dimensional than e.g. CIFAR10. With the full dataset, we achieve an accuracy of 81%. The increase between 50 to 500 images per class might suggest a linear increase in performance with an exponentially larger dataset. However, with even more data, we could also finetune $f(\cdot)$ in the training process, allowing for the representations to adapt more to the specific classification task given.
 
