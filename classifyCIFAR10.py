@@ -239,7 +239,7 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
     pretrained_filename = os.path.join(CHECKPOINT_PATH, f"LogisticRegression_{model_suffix}.ckpt")
     if os.path.isfile(pretrained_filename):
         print(f"Found pretrained model at {pretrained_filename}, loading...")
-        model = LogisticRegression.load_from_checkpoint(pretrained_filename)
+        # model = LogisticRegression.load_from_checkpoint(pretrained_filename)
     else:
         pl.seed_everything(42)  # To be reproducable
         model = LogisticRegression(**kwargs)
