@@ -72,6 +72,9 @@ import torchvision
 from torchvision.datasets import MNIST
 from torchvision import transforms
 
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 # PyTorch Lightning
 try:
     import pytorch_lightning as pl
