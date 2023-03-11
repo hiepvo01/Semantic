@@ -339,7 +339,7 @@ simclr_model = train_simclr(batch_size=256,
                             lr=5e-4, 
                             temperature=0.07, 
                             weight_decay=1e-4, 
-                            max_epochs=100)
+                            max_epochs=500)
 
 """To get an intuition of how training with contrastive learning behaves, we can take a look at the TensorBoard below:"""
 
@@ -516,8 +516,28 @@ plt.title("MNIST classification over dataset size", fontsize=14)
 plt.xlabel("Number of images per class")
 plt.ylabel("Test accuracy")
 plt.minorticks_off()
-plt.savefig('./figures/MNIST.png', format="png")
+plt.savefig('./figures/MNISTtest.png', format="png")
 plt.show()
+
+dataset_sizes = sorted([k for k in results])
+train_scores = [results[k]["train"] for k in dataset_sizes]
+
+fig = plt.figure(figsize=(6,4))
+plt.plot(dataset_sizes, train_scores, '--', color="#000", marker="*", markeredgecolor="#000", markerfacecolor="y", markersize=16)
+plt.xscale("log")
+plt.xticks(dataset_sizes, labels=dataset_sizes)
+plt.title("MNIST classification over dataset size", fontsize=14)
+plt.xlabel("Number of images per class")
+plt.ylabel("Train accuracy")
+plt.minorticks_off()
+plt.savefig('./figures/MNISTtrain.png', format="png")
+plt.show()
+
+
+for k, score in zip(dataset_sizes, test_scores):
+    print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
+for k, score in zip(dataset_sizes, train_scores):
+    print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
 
 
 for k, score in zip(dataset_sizes, test_scores):
@@ -538,6 +558,8 @@ class ResNet(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model = torchvision.models.resnet18(num_classes=num_classes)
+        self.convnet.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), 
