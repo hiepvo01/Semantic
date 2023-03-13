@@ -115,7 +115,7 @@ pretrained_files = ["SimCLR.ckpt", "ResNet.ckpt",
 pretrained_files += [f"LogisticRegression_{size}.ckpt" for size in [10, 20, 50, 100, 200, 500]]
 # Create checkpoint path if it doesn't exist yet
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
-                                    
+
 # For each file, check whether it already exists. If not, try downloading it.
 for file_name in pretrained_files:
     file_path = os.path.join(CHECKPOINT_PATH, file_name)
