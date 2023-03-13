@@ -86,7 +86,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
 DATASET_PATH = "./data"
 # Path to the folder where the pretrained models are saved
-CHECKPOINT_PATH = "./results/STL10"
+CHECKPOINT_PATH = "../saved_models/stl10"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
 NUM_WORKERS = os.cpu_count()
@@ -115,7 +115,7 @@ pretrained_files = ["SimCLR.ckpt", "ResNet.ckpt",
 pretrained_files += [f"LogisticRegression_{size}.ckpt" for size in [10, 20, 50, 100, 200, 500]]
 # Create checkpoint path if it doesn't exist yet
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
-
+                                    
 # For each file, check whether it already exists. If not, try downloading it.
 for file_name in pretrained_files:
     file_path = os.path.join(CHECKPOINT_PATH, file_name)
@@ -452,15 +452,15 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
                                   drop_last=False, pin_memory=True, num_workers=0)
 
     # Check whether pretrained model exists. If yes, load it and skip training
-    pretrained_filename = os.path.join(CHECKPOINT_PATH, f"LogisticRegression_{model_suffix}.ckpt")
-    if os.path.isfile(pretrained_filename):
-        print(f"Found pretrained model at {pretrained_filename}, loading...")
-        model = LogisticRegression.load_from_checkpoint(pretrained_filename)
-    else:
-        pl.seed_everything(42)  # To be reproducable
-        model = LogisticRegression(**kwargs)
-        trainer.fit(model, train_loader, test_loader)
-        model = LogisticRegression.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
+    # pretrained_filename = os.path.join(CHECKPOINT_PATH, f"LogisticRegression_{model_suffix}.ckpt")
+    # if os.path.isfile(pretrained_filename):
+    #     print(f"Found pretrained model at {pretrained_filename}, loading...")
+    #     model = LogisticRegression.load_from_checkpoint(pretrained_filename)
+    # else:
+    pl.seed_everything(42)  # To be reproducable
+    model = LogisticRegression(**kwargs)
+    trainer.fit(model, train_loader, test_loader)
+    model = LogisticRegression.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
 
     # Test best model on train and validation set
     train_result = trainer.test(model, train_loader, verbose=False)

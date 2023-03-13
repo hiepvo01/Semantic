@@ -537,7 +537,7 @@ plt.show()
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
 for k, score in zip(dataset_sizes, train_scores):
-    print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
+    print(f'Train accuracy for {k:3d} images per label: {100*score:4.2f}%')
 
 
 for k, score in zip(dataset_sizes, test_scores):
@@ -558,7 +558,7 @@ class ResNet(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model = torchvision.models.resnet18(num_classes=num_classes)
-        self.convnet.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        self.model.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
 
 
     def configure_optimizers(self):
