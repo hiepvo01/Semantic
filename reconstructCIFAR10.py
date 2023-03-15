@@ -292,7 +292,7 @@ def test_epoch(encoder, decoder, device, dataloader, loss_fn):
 def plot_ae_outputs(encoder,decoder,n=10):
     plt.figure(figsize=(16,4.5))
     
-    targets = test_dataset.targets.numpy()
+    targets = np.array(test_dataset.targets)
     t_idx = {i:np.where(targets==i)[0][0] for i in range(n)}
     for i in range(n):
       ax = plt.subplot(2,n,i+1)
@@ -301,18 +301,18 @@ def plot_ae_outputs(encoder,decoder,n=10):
       decoder.eval()
       with torch.no_grad():
          rec_img  = decoder(encoder(img))
-      plt.imshow(img.cpu().squeeze().numpy(), cmap='gist_gray')
+      plt.imshow(img.T.cpu().squeeze().numpy(), cmap='gist_gray')
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
       if i == n//2:
         ax.set_title('Original images')
       ax = plt.subplot(2, n, i + 1 + n)
-      plt.imshow(rec_img.cpu().squeeze().numpy(), cmap='gist_gray')  
+      plt.imshow(rec_img.T.cpu().squeeze().numpy(), cmap='gist_gray')  
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
       if i == n//2:
          ax.set_title('Reconstructed images')
-    plt.savefig('./figures/CIFAR10/CIFAR10reconstruct_epoch_' + str(epoch)+'.png')
+    plt.savefig('./figures/CIFAR10/CIFARreconstruct_epoch_' + str(epoch)+'.png')
     
 num_epochs = 30
 diz_loss = {'train_loss':[],'val_loss':[]}
