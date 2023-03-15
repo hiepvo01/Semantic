@@ -104,30 +104,30 @@ print("Number of workers:", NUM_WORKERS)
 
 """As in many tutorials before, we provide pre-trained models. Note that those models are slightly larger as normal (~100MB overall) since we use the default ResNet-18 architecture. If you are running this notebook locally, make sure to have sufficient disk space available."""
 
-import urllib.request
-from urllib.error import HTTPError
-# Github URL where saved models are stored for this tutorial
-base_url = "https://raw.githubusercontent.com/phlippe/saved_models/main/tutorial17/"
-# Files to download
-pretrained_files = ["SimCLR.ckpt", "ResNet.ckpt",
-                    "tensorboards/SimCLR/events.out.tfevents.SimCLR",
-                    "tensorboards/classification/ResNet/events.out.tfevents.ResNet"]
-pretrained_files += [f"LogisticRegression_{size}.ckpt" for size in [10, 20, 50, 100, 200, 500]]
+# import urllib.request
+# from urllib.error import HTTPError
+# # Github URL where saved models are stored for this tutorial
+# base_url = "https://raw.githubusercontent.com/phlippe/saved_models/main/tutorial17/"
+# # Files to download
+# pretrained_files = ["SimCLR.ckpt", "ResNet.ckpt",
+#                     "tensorboards/SimCLR/events.out.tfevents.SimCLR",
+#                     "tensorboards/classification/ResNet/events.out.tfevents.ResNet"]
+# pretrained_files += [f"LogisticRegression_{size}.ckpt" for size in [10, 20, 50, 100, 200, 500]]
 # Create checkpoint path if it doesn't exist yet
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
-# For each file, check whether it already exists. If not, try downloading it.
-for file_name in pretrained_files:
-    file_path = os.path.join(CHECKPOINT_PATH, file_name)
-    if "/" in file_name:
-        os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
-    if not os.path.isfile(file_path):
-        file_url = base_url + file_name
-        print(f"Downloading {file_url}...")
-        try:
-            urllib.request.urlretrieve(file_url, file_path)
-        except HTTPError as e:
-            print("Something went wrong. Please try to download the file from the GDrive folder, or contact the author with the full output including the following error:\n", e)
+# # For each file, check whether it already exists. If not, try downloading it.
+# for file_name in pretrained_files:
+#     file_path = os.path.join(CHECKPOINT_PATH, file_name)
+#     if "/" in file_name:
+#         os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
+#     if not os.path.isfile(file_path):
+#         file_url = base_url + file_name
+#         print(f"Downloading {file_url}...")
+#         try:
+#             urllib.request.urlretrieve(file_url, file_path)
+#         except HTTPError as e:
+#             print("Something went wrong. Please try to download the file from the GDrive folder, or contact the author with the full output including the following error:\n", e)
 
 """## SimCLR
 
@@ -320,6 +320,9 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
         pl.seed_everything(42) # To be reproducable
         model = SimCLR(max_epochs=max_epochs, **kwargs)
         trainer.fit(model, train_loader, val_loader)
+        
+        torch.save(model.convnet.state_dict(), "./results/simclrSTL10.pt")
+        
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
 
     return model
@@ -327,7 +330,7 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
 """A common observation in contrastive learning is that the larger the batch size, the better the models perform. A larger batch size allows us to compare each image to more negative examples, leading to overall smoother loss gradients. However, in our case, we experienced that a batch size of 256 was sufficient to get good results."""
 
 simclr_model = train_simclr(batch_size=256, 
-                            hidden_dim=128, 
+                            hidden_dim=384, 
                             lr=5e-4, 
                             temperature=0.07, 
                             weight_decay=1e-4, 

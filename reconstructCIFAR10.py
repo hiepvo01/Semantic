@@ -164,7 +164,7 @@ class Decoder(nn.Module):
                  num_input_channels : int,
                  base_channel_size : int,
                  latent_dim : int,
-                 act_fn : object = nn.LeakyReLU):
+                 act_fn : object = nn.ReLU):
         """
         Inputs:
             - num_input_channels : Number of channels of the image to reconstruct. For CIFAR, this parameter is 3
@@ -175,7 +175,9 @@ class Decoder(nn.Module):
         super().__init__()
         c_hid = base_channel_size
         self.linear = nn.Sequential(
-            nn.Linear(latent_dim, 2*16*c_hid),
+            nn.Linear(latent_dim, 384),
+            act_fn(),
+            nn.Linear(384, 2*16*c_hid),
             act_fn()
         )
         self.net = nn.Sequential(
@@ -296,11 +298,11 @@ def test_epoch(encoder, decoder, device, dataloader, loss_fn):
 def plot_ae_outputs(encoder,decoder,n=10):
     plt.figure(figsize=(16,4.5))
     
-    targets = np.array(test_dataset.targets)
+    targets = np.array(train_dataset.targets)
     t_idx = {i:np.where(targets==i)[0][0] for i in range(n)}
     for i in range(n):
       ax = plt.subplot(2,n,i+1)
-      img = test_dataset[t_idx[i]][0].unsqueeze(0).to(device)
+      img = train_dataset[t_idx[i]][0].unsqueeze(0).to(device)
       encoder.eval()
       decoder.eval()
       with torch.no_grad():

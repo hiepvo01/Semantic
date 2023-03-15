@@ -86,7 +86,8 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
 DATASET_PATH = "./data"
 # Path to the folder where the pretrained models are saved
-CHECKPOINT_PATH = "../results/CIFAR10"
+# CHECKPOINT_PATH = "../results/CIFAR10"
+CHECKPOINT_PATH = "../saved_models/cifar10"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
 NUM_WORKERS = os.cpu_count()
@@ -332,7 +333,7 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
 """A common observation in contrastive learning is that the larger the batch size, the better the models perform. A larger batch size allows us to compare each image to more negative examples, leading to overall smoother loss gradients. However, in our case, we experienced that a batch size of 256 was sufficient to get good results."""
 
 simclr_model = train_simclr(batch_size=256, 
-                            hidden_dim=128, 
+                            hidden_dim=384, 
                             lr=5e-4, 
                             temperature=0.07, 
                             weight_decay=1e-4, 
