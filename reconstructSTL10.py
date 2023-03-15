@@ -165,7 +165,7 @@ class Decoder(nn.Module):
                  num_input_channels : int,
                  base_channel_size : int,
                  latent_dim : int,
-                 act_fn : object = nn.GELU):
+                 act_fn : object = nn.LeakyReLU):
 
         super().__init__()
         c_hid = base_channel_size
@@ -178,7 +178,11 @@ class Decoder(nn.Module):
             act_fn(),
             nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
             act_fn(),
+            nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
+            act_fn(),
             nn.ConvTranspose2d(c_hid, c_hid, kernel_size=3, output_padding=1, padding=1, stride=2), # 8x8 => 16x16
+            act_fn(),
+            nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
             act_fn(),
             nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
             act_fn(),
@@ -213,9 +217,6 @@ encoder = SimCLR(
             max_epochs=100)
 
 encoder.load_from_checkpoint('./results/simclrSTL10.ckpt')
-# encoder.convnet.load_state_dict(
-#     torch.load('./results/simclrSTL10.pt')
-# )
 
 decoder = Decoder(num_input_channels=3, base_channel_size=96, latent_dim=128)
 params_to_optimize = [
