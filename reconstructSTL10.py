@@ -170,22 +170,24 @@ class Decoder(nn.Module):
         super().__init__()
         c_hid = base_channel_size
         self.linear = nn.Sequential(
-            nn.Linear(latent_dim, 2*12*12*c_hid),
-            act_fn()
+            nn.Linear(384, 384),
+            nn.ReLU(True),
+            nn.Linear(384, 2*12*12*c_hid),
+            nn.ReLU(True)
         )
         self.net = nn.Sequential(
             nn.ConvTranspose2d(2*c_hid, 2*c_hid, kernel_size=3, output_padding=1, padding=1, stride=2), # 4x4 => 8x8
-            act_fn(),
+            nn.BatchNorm2d(2*c_hid),
+            nn.ReLU(True),
             nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1),
-            act_fn(),
-            nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1),
-            act_fn(),
+            nn.BatchNorm2d(2*c_hid),
+            nn.ReLU(True),
             nn.ConvTranspose2d(2*c_hid, c_hid, kernel_size=3, output_padding=1, padding=1, stride=2), # 8x8 => 16x16
-            act_fn(),
+            nn.BatchNorm2d(c_hid),
+            nn.ReLU(True),
             nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
-            act_fn(),
-            nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
-            act_fn(),
+            nn.BatchNorm2d(c_hid),
+            nn.ReLU(True),
             nn.ConvTranspose2d(c_hid, num_input_channels, kernel_size=3, output_padding=1, padding=1, stride=2), # 16x16 => 32x32
             nn.Tanh() # The input images is scaled between -1 and 1, hence the output has to be bounded as well
         )
@@ -206,19 +208,22 @@ lr= 0.001
 torch.manual_seed(0)
 
 ### Initialize the two networks
-d = 128
+d = 384
 
 #model = Autoencoder(encoded_space_dim=encoded_space_dim)
 encoder = SimCLR( 
-            hidden_dim=128, 
+            hidden_dim=384, 
             lr=5e-4, 
             temperature=0.07, 
             weight_decay=1e-4, 
             max_epochs=100)
 
-encoder.load_from_checkpoint('./results/simclrSTL10.ckpt')
+# encoder.load_from_checkpoint('./results/simclrSTL10.ckpt')
+encoder.convnet.load_state_dict(
+    torch.load('../results/simclrCIFAR10.pt')
+)
 
-decoder = Decoder(num_input_channels=3, base_channel_size=96, latent_dim=128)
+decoder = Decoder(num_input_channels=3, base_channel_size=96, latent_dim=384)
 params_to_optimize = [
     {'params': encoder.parameters()},
     {'params': decoder.parameters()}
