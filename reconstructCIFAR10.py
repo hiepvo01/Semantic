@@ -249,35 +249,32 @@ class AE(nn.Module):
         """
         super().__init__()
         c_hid = base_channel_size
-        self.simclr = SimCLR( 
+        network = SimCLR( 
             hidden_dim=384, 
             lr=5e-4, 
             temperature=0.07, 
             weight_decay=1e-4, 
             max_epochs=100)
+        self.simclr = deepcopy(network.convnet)
+        self.simclr.fc = nn.Identity()
+        
         self.simclr.convnet.load_state_dict(
             torch.load('../results/simclrCIFAR10.pt')
         )
+        
         self.simclr.fc = nn.Identity()
-        # self.simclr.eval()     
+        self.simclr.eval()     
         self.encoder = nn.Sequential(
             nn.Linear(384, 384),
-            nn.ReLU(),
             nn.Linear(384, 384),
-            nn.ReLU(),
             nn.Linear(384, 384),
-            nn.ReLU(),
             nn.Linear(384, 384),
-            nn.ReLU(),
             nn.Linear(384, 384),
-            nn.ReLU(),
             nn.Linear(384, 384),
-            nn.ReLU(),
             nn.Linear(384, 384),
-            nn.ReLU(),
             nn.Linear(384, 384),
-            nn.ReLU(),
             nn.Linear(384, 384),
+            nn.ReLU(True)
         )
         self.decoder = Decoder(num_input_channels=num_input_channels, base_channel_size=32, latent_dim=latent_dim)    
 
