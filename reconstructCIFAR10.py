@@ -308,7 +308,7 @@ model1 = SimCLR(
             max_epochs=100)
 
 model1.convnet.load_state_dict(
-    torch.load('./simclrCIFAR10.pt')
+    torch.load('./results/simclrCIFAR10.pt')
 )
 
 simclr = deepcopy(model1.convnet)

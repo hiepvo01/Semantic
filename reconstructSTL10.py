@@ -220,7 +220,7 @@ encoder = SimCLR(
 
 # encoder.load_from_checkpoint('./results/simclrSTL10.ckpt')
 encoder.convnet.load_state_dict(
-    torch.load('../results/simclrCIFAR10.pt')
+    torch.load('./results/simclrSTL10.pt')
 )
 
 decoder = Decoder(num_input_channels=3, base_channel_size=96, latent_dim=384)
