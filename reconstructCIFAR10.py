@@ -252,7 +252,7 @@ class AE(nn.Module):
         network = SimCLR( 
             hidden_dim=384, 
             lr=5e-4, 
-            temperature=0.07, 
+            temperature=0.07, 384
             weight_decay=1e-4, 
             max_epochs=100)
         network.convnet.load_state_dict(
@@ -264,11 +264,11 @@ class AE(nn.Module):
         
         self.simclr.eval()     
         self.encoder = nn.Sequential(
-            nn.Linear(512, 512),
-            nn.Linear(512, 512),
-            nn.Linear(512, 512),
-            nn.Linear(512, 512),
-            nn.Linear(512, 512),
+            nn.Linear(384, 384),
+            nn.Linear(384, 384),
+            nn.Linear(384, 384),
+            nn.Linear(384, 384),
+            nn.Linear(384, 384),
             nn.ReLU(True)
         )
         self.decoder = Decoder(num_input_channels=num_input_channels, base_channel_size=32, latent_dim=latent_dim)    
@@ -289,7 +289,7 @@ lr= 0.001
 torch.manual_seed(0)
 
 ### Initialize the two networks
-d = 512
+d = 384
 
 #model = Autoencoder(encoded_space_dim=encoded_space_dim)
 model1 = SimCLR( 
@@ -306,7 +306,7 @@ model1.convnet.load_state_dict(
 simclr = deepcopy(model1.convnet)
 simclr.fc = nn.Identity()
 
-autoencoder = AE(base_channel_size=512, num_input_channels=3, latent_dim=384)
+autoencoder = AE(base_channel_size=384, num_input_channels=3, latent_dim=384)
 
 params_to_optimize = [
     {'params': simclr.parameters()},
