@@ -164,7 +164,7 @@ Overall, for our experiments, we apply a set of 5 transformations following the 
 """
 
 contrast_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
-                                          transforms.RandomResizedCrop(size=96),
+                                          transforms.RandomResizedCrop(size=32),
                                           transforms.RandomApply([
                                               transforms.ColorJitter(brightness=0.5, 
                                                                      contrast=0.5, 
@@ -233,13 +233,16 @@ Finally, now that we have discussed all details, let's implement SimCLR below as
 
 class SimCLR(pl.LightningModule):
     
-    def __init__(self, hidden_dim, lr, temperature, weight_decay, max_epochs=500, c_hid=32):
+    def __init__(self, hidden_dim, lr, temperature, weight_decay, max_epochs=3, c_hid=32):
         super().__init__()
         self.save_hyperparameters()
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
         # Base model f(.)
         self.convnet = torchvision.models.resnet18(num_classes=4*hidden_dim)  # Output of last linear layer
+        
         # The MLP for g(.) consists of Linear->ReLU->Linear 
+        
+        
         self.convnet.fc = nn.Sequential(
             self.convnet.fc,  # Linear(ResNet output, 4*hidden_dim)
             nn.ReLU(inplace=True),
@@ -300,7 +303,7 @@ class SimCLR(pl.LightningModule):
 Now that we have implemented SimCLR and the data loading pipeline, we are ready to train the model. We will use the same training function setup as usual. For saving the best model checkpoint, we track the metric `val_acc_top5`, which describes how often the correct image patch is within the top-5 most similar examples in the batch. This is usually less noisy than the top-1 metric, making it a better metric to choose the best model from.
 """
 
-def train_simclr(batch_size, max_epochs=500, **kwargs):
+def train_simclr(batch_size, max_epochs=3, **kwargs):
     trainer = pl.Trainer(default_root_dir=os.path.join(CHECKPOINT_PATH, 'SimCLR'),
                          accelerator="gpu" if str(device).startswith("cuda") else "cpu",
                          devices=1,
@@ -323,10 +326,9 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
         model = SimCLR(max_epochs=max_epochs, **kwargs)
         trainer.fit(model, train_loader, val_loader)
         
-        torch.save(model.convnet.state_dict(), "simclrCIFAR10.pt")
+        torch.save(model.convnet.state_dict(), "./results/simclrCIFAR10-384.pt")
         
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
-        trainer.save_checkpoint("'./results/CIFAR10/simclrCIFAR10.ckpt")
 
     return model
 
@@ -337,7 +339,7 @@ simclr_model = train_simclr(batch_size=256,
                             lr=5e-4, 
                             temperature=0.07, 
                             weight_decay=1e-4, 
-                            max_epochs=500)
+                            max_epochs=3)
 
 """To get an intuition of how training with contrastive learning behaves, we can take a look at the TensorBoard below:"""
 

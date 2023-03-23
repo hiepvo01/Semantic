@@ -201,14 +201,14 @@ def prepare_data_features(model, dataset):
 
 
 simclr_model = SimCLR( 
-                    hidden_dim=128, 
+                    hidden_dim=384, 
                     lr=5e-4, 
                     temperature=0.07, 
                     weight_decay=1e-4, 
                     max_epochs=100)
 
 simclr_model.convnet.load_state_dict(
-    torch.load('./results/simclrCIFAR10.pt')
+    torch.load('./results/simclrCIFAR10-384.pt')
 )
 
 """Let's apply the function to both training and test set below."""

@@ -372,7 +372,7 @@ def test_epoch(simclr, autoencoder, device, dataloader, loss_fn):
         val_loss = loss_fn(conc_out, conc_label)
     return val_loss.data
 
-def plot_ae_outputs(autoencoder,n=10):
+def plot_ae_outputs(simclr, autoencoder,n=10):
     plt.figure(figsize=(16,4.5))
     
     # targets = np.asarray(test_dataset.targets)
@@ -386,6 +386,7 @@ def plot_ae_outputs(autoencoder,n=10):
 
       with torch.no_grad():
          rec_img  = autoencoder(img)
+         
       plt.imshow(img.T.cpu().squeeze().numpy())
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
