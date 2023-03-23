@@ -96,7 +96,7 @@ test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,sh
 
 class SimCLR(pl.LightningModule):
     
-    def __init__(self, hidden_dim, lr, temperature, weight_decay, max_epochs=500, c_hid=32):
+    def __init__(self, hidden_dim, lr, temperature, weight_decay, max_epochs=500, c_hid=96):
         super().__init__()
         self.save_hyperparameters()
         assert self.hparams.temperature > 0.0, 'The temperature must be a positive float!'
@@ -216,13 +216,13 @@ class Decoder(nn.Module):
             act_fn(),
             nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
             act_fn(),
-            nn.ConvTranspose2d(c_hid, num_input_channels, kernel_size=3, output_padding=1, padding=1, stride=2), # 16x16 => 32x32
+            nn.ConvTranspose2d(c_hid, num_input_channels, kernel_size=3, output_padding=1, padding=1, stride=2), # 16x16 => 96x96
             nn.Tanh() # The input images is scaled between -1 and 1, hence the output has to be bounded as well
         )
 
     def forward(self, x):
         x = self.linear(x)
-        x = x.reshape(x.shape[0], -1, 4, 4)
+        x = x.reshape(x.shape[0], -1, 12, 12)
         x = self.net(x)
         return x
     
@@ -267,7 +267,7 @@ class AE(nn.Module):
             
             nn.ReLU(True)
         )
-        self.decoder = Decoder(num_input_channels=num_input_channels, base_channel_size=32, latent_dim=latent_dim)    
+        self.decoder = Decoder(num_input_channels=num_input_channels, base_channel_size=96, latent_dim=latent_dim)    
 
     def forward(self, x):
         x = self.simclr(x)
