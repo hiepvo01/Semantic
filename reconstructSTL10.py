@@ -20,7 +20,7 @@ import seaborn as sns
 sns.set()
 
 ## tqdm for loading bars
-from tqdm.notebook import tqdm
+#from tqdm.notebook import tqdm
 
 ## PyTorch
 import torch.nn as nn
@@ -200,7 +200,7 @@ class Decoder(nn.Module):
         super().__init__()
         c_hid = base_channel_size
         self.linear = nn.Sequential(
-            nn.Linear(latent_dim, 2*16*c_hid),
+            nn.Linear(latent_dim, 2*12*12*c_hid),
             act_fn()
         )
         self.net = nn.Sequential(
@@ -372,24 +372,27 @@ def test_epoch(simclr, autoencoder, device, dataloader, loss_fn):
         val_loss = loss_fn(conc_out, conc_label)
     return val_loss.data
 
-def plot_ae_outputs(simclr,autoencoder,n=10):
+def plot_ae_outputs(encoder,decoder,n=10):
     plt.figure(figsize=(16,4.5))
     
-    targets = np.array(test_dataset.targets)
+    # targets = np.asarray(test_dataset.targets)
+    targets = test_dataset.labels
+    
     t_idx = {i:np.where(targets==i)[0][0] for i in range(n)}
     for i in range(n):
       ax = plt.subplot(2,n,i+1)
       img = test_dataset[t_idx[i]][0].unsqueeze(0).to(device)
-      autoencoder.eval()
+      encoder.eval()
+      decoder.eval()
       with torch.no_grad():
-         rec_img  = autoencoder(img)
-      plt.imshow(img.T.cpu().squeeze().numpy(), cmap='gist_gray')
+         rec_img  = decoder(encoder(img))
+      plt.imshow(img.T.cpu().squeeze().numpy())
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
       if i == n//2:
         ax.set_title('Original images')
       ax = plt.subplot(2, n, i + 1 + n)
-      plt.imshow(rec_img.T.cpu().squeeze().numpy(), cmap='gist_gray')  
+      plt.imshow(rec_img.T.cpu().squeeze().numpy())  
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
       if i == n//2:
