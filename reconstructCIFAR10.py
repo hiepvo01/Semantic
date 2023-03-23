@@ -73,11 +73,11 @@ test_dataset  = torchvision.datasets.CIFAR10(data_dir, train=False, download=Tru
 
 train_transform = transforms.Compose([
 transforms.ToTensor(),
-])
+transforms.Normalize((0.5,), (0.5,))])
 
 test_transform = transforms.Compose([
 transforms.ToTensor(),
-])
+transforms.Normalize((0.5,), (0.5,))])
 
 train_dataset.transform = train_transform
 test_dataset.transform = test_transform
