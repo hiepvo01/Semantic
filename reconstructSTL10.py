@@ -73,12 +73,14 @@ val_dataset = torchvision.datasets.STL10(data_dir, split='train', download=True)
 test_dataset  = torchvision.datasets.STL10(data_dir, split='test', download=True)
 
 train_transform = transforms.Compose([
+
 transforms.ToTensor(),
-])
+transforms.Normalize((0.5,), (0.5,))])
 
 test_transform = transforms.Compose([
+
 transforms.ToTensor(),
-])
+transforms.Normalize((0.5,), (0.5,))])
 
 train_dataset.transform = train_transform
 test_dataset.transform = test_transform
@@ -158,44 +160,119 @@ class SimCLR(pl.LightningModule):
         
     def validation_step(self, batch, batch_idx):
         self.info_nce_loss(batch, mode='val')
+        
+class Encoder(nn.Module):
     
+    def __init__(self,
+                 num_input_channels : int,
+                 base_channel_size : int,
+                 latent_dim : int,
+                 act_fn : object = nn.ReLU):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(base_channel_size, latent_dim),
+            act_fn(),
+            nn.Linear(latent_dim, latent_dim),
+            act_fn(),
+            nn.Linear(latent_dim, latent_dim),
+            act_fn(),
+            nn.Linear(latent_dim, latent_dim),
+        )
+
+    def forward(self, x):
+        x = self.net(x)
+        return x
+
 class Decoder(nn.Module):
     
     def __init__(self,
                  num_input_channels : int,
                  base_channel_size : int,
                  latent_dim : int,
-                 act_fn : object = nn.LeakyReLU):
-
+                 act_fn : object = nn.GELU):
+        """
+        Inputs:
+            - num_input_channels : Number of channels of the image to reconstruct. For CIFAR, this parameter is 3
+            - base_channel_size : Number of channels we use in the last convolutional layers. Early layers might use a duplicate of it.
+            - latent_dim : Dimensionality of latent representation z
+            - act_fn : Activation function used throughout the decoder network
+        """
         super().__init__()
         c_hid = base_channel_size
         self.linear = nn.Sequential(
-            nn.Linear(384, 384),
-            nn.ReLU(True),
-            nn.Linear(384, 2*12*12*c_hid),
-            nn.ReLU(True)
+            nn.Linear(latent_dim, 2*16*c_hid),
+            act_fn()
         )
         self.net = nn.Sequential(
             nn.ConvTranspose2d(2*c_hid, 2*c_hid, kernel_size=3, output_padding=1, padding=1, stride=2), # 4x4 => 8x8
-            nn.BatchNorm2d(2*c_hid),
-            nn.ReLU(True),
+            act_fn(),
             nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1),
-            nn.BatchNorm2d(2*c_hid),
-            nn.ReLU(True),
+            act_fn(),
+            nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1),
+            act_fn(),
             nn.ConvTranspose2d(2*c_hid, c_hid, kernel_size=3, output_padding=1, padding=1, stride=2), # 8x8 => 16x16
-            nn.BatchNorm2d(c_hid),
-            nn.ReLU(True),
+            act_fn(),
             nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
-            nn.BatchNorm2d(c_hid),
-            nn.ReLU(True),
+            act_fn(),
+            nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
+            act_fn(),
             nn.ConvTranspose2d(c_hid, num_input_channels, kernel_size=3, output_padding=1, padding=1, stride=2), # 16x16 => 32x32
             nn.Tanh() # The input images is scaled between -1 and 1, hence the output has to be bounded as well
         )
 
     def forward(self, x):
         x = self.linear(x)
-        x = x.reshape(x.shape[0], -1, 12, 12)
+        x = x.reshape(x.shape[0], -1, 4, 4)
         x = self.net(x)
+        return x
+    
+    
+class AE(nn.Module):
+    
+    def __init__(self,
+                 num_input_channels : int,
+                 base_channel_size : int,
+                 latent_dim : int,
+                 act_fn : object = nn.GELU,
+                 simclr: object = SimCLR,
+                 decoder: object = Decoder):
+        """
+        Inputs:
+            - num_input_channels : Number of channels of the image to reconstruct. For CIFAR, this parameter is 3
+            - base_channel_size : Number of channels we use in the last convolutional layers. Early layers might use a duplicate of it.
+            - latent_dim : Dimensionality of latent representation z
+            - act_fn : Activation function used throughout the decoder network
+        """
+        super().__init__()
+        c_hid = base_channel_size
+        network = SimCLR( 
+            hidden_dim=384, 
+            lr=5e-4, 
+            temperature=0.07, 
+            weight_decay=1e-4, 
+            max_epochs=100)
+        network.convnet.load_state_dict(
+            torch.load('./results/simclrSTL10.pt')
+        )
+        
+        self.simclr = deepcopy(network.convnet)
+        self.simclr.fc = nn.Identity()
+        
+        self.simclr.eval()     
+        self.encoder = nn.Sequential(
+            nn.Linear(512, 512),
+            nn.Linear(512, 512),
+            nn.Linear(512, 512),
+            nn.Linear(512, 512),
+            
+            nn.ReLU(True)
+        )
+        self.decoder = Decoder(num_input_channels=num_input_channels, base_channel_size=32, latent_dim=latent_dim)    
+
+    def forward(self, x):
+        x = self.simclr(x)
+        x = self.encoder(x)
+        x = self.decoder(x)
         return x
 
 ### Define the loss function
@@ -208,25 +285,28 @@ lr= 0.001
 torch.manual_seed(0)
 
 ### Initialize the two networks
-d = 384
+d = 512
 
 #model = Autoencoder(encoded_space_dim=encoded_space_dim)
-encoder = SimCLR( 
+model1 = SimCLR( 
             hidden_dim=384, 
             lr=5e-4, 
             temperature=0.07, 
             weight_decay=1e-4, 
             max_epochs=100)
 
-# encoder.load_from_checkpoint('./results/simclrSTL10.ckpt')
-encoder.convnet.load_state_dict(
+model1.convnet.load_state_dict(
     torch.load('./results/simclrSTL10.pt')
 )
 
-decoder = Decoder(num_input_channels=3, base_channel_size=96, latent_dim=384)
+simclr = deepcopy(model1.convnet)
+simclr.fc = nn.Identity()
+
+autoencoder = AE(base_channel_size=512, num_input_channels=3, latent_dim=512)
+
 params_to_optimize = [
-    {'params': encoder.parameters()},
-    {'params': decoder.parameters()}
+    {'params': simclr.parameters()},
+    {'params': autoencoder.parameters()},
 ]
 
 optim = torch.optim.Adam(params_to_optimize, lr=lr, weight_decay=1e-05)
@@ -235,24 +315,25 @@ optim = torch.optim.Adam(params_to_optimize, lr=lr, weight_decay=1e-05)
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 print(f'Selected device: {device}')
 
+
 # Move both the encoder and the decoder to the selected device
-encoder.to(device)
-decoder.to(device)
+simclr.to(device)
+autoencoder.to(device)
 
 ### Training function
-def train_epoch(encoder, decoder, device, dataloader, loss_fn, optimizer):
+def train_epoch(simclr, autoencoder, device, dataloader, loss_fn, optimizer):
+    simclr.eval()
     # Set train mode for both the encoder and the decoder
-    encoder.train()
-    decoder.train()
+    autoencoder.train()
     train_loss = []
     # Iterate the dataloader (we do not need the label values, this is unsupervised learning)
-    for image_batch, _ in tqdm(dataloader): # with "_" we just ignore the labels (the second element of the dataloader tuple)
+    for image_batch, _ in dataloader: # with "_" we just ignore the labels (the second element of the dataloader tuple)
         # Move tensor to the proper device
         image_batch = image_batch.to(device)
         # Encode data
-        encoded_data = encoder(image_batch)
+        # encoded_data = simclr(image_batch)
         # Decode data
-        decoded_data = decoder(encoded_data)
+        decoded_data = autoencoder(image_batch)
         # Evaluate loss
         loss = loss_fn(decoded_data, image_batch)
         # Backward pass
@@ -266,10 +347,10 @@ def train_epoch(encoder, decoder, device, dataloader, loss_fn, optimizer):
     return np.mean(train_loss)
 
 ### Testing function
-def test_epoch(encoder, decoder, device, dataloader, loss_fn):
+def test_epoch(simclr, autoencoder, device, dataloader, loss_fn):
     # Set evaluation mode for encoder and decoder
-    encoder.eval()
-    decoder.eval()
+    simclr.eval()
+    autoencoder.train()
     with torch.no_grad(): # No need to track the gradients
         # Define the lists to store the outputs for each batch
         conc_out = []
@@ -278,9 +359,9 @@ def test_epoch(encoder, decoder, device, dataloader, loss_fn):
             # Move tensor to the proper device
             image_batch = image_batch.to(device)
             # Encode data
-            encoded_data = encoder(image_batch)
+            # encoded_data = simclr(image_batch)
             # Decode data
-            decoded_data = decoder(encoded_data)
+            decoded_data = autoencoder(image_batch)
             # Append the network output and the original image to the lists
             conc_out.append(decoded_data.cpu())
             conc_label.append(image_batch.cpu())
@@ -291,41 +372,37 @@ def test_epoch(encoder, decoder, device, dataloader, loss_fn):
         val_loss = loss_fn(conc_out, conc_label)
     return val_loss.data
 
-def plot_ae_outputs(encoder,decoder,n=10):
+def plot_ae_outputs(simclr,autoencoder,n=10):
     plt.figure(figsize=(16,4.5))
     
-    # targets = np.asarray(test_dataset.targets)
-    targets = test_dataset.labels
-    
+    targets = np.array(test_dataset.targets)
     t_idx = {i:np.where(targets==i)[0][0] for i in range(n)}
     for i in range(n):
       ax = plt.subplot(2,n,i+1)
       img = test_dataset[t_idx[i]][0].unsqueeze(0).to(device)
-      encoder.eval()
-      decoder.eval()
+      autoencoder.eval()
       with torch.no_grad():
-         rec_img  = decoder(encoder(img))
-      plt.imshow(img.T.cpu().squeeze().numpy())
+         rec_img  = autoencoder(img)
+      plt.imshow(img.T.cpu().squeeze().numpy(), cmap='gist_gray')
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
       if i == n//2:
         ax.set_title('Original images')
       ax = plt.subplot(2, n, i + 1 + n)
-      plt.imshow(rec_img.T.cpu().squeeze().numpy())  
+      plt.imshow(rec_img.T.cpu().squeeze().numpy(), cmap='gist_gray')  
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
       if i == n//2:
          ax.set_title('Reconstructed images')
     plt.savefig('./figures/STL10/STLreconstruct_epoch_' + str(epoch)+'.png')
     
-num_epochs = 30
+num_epochs = 50
 diz_loss = {'train_loss':[],'val_loss':[]}
 for epoch in range(num_epochs):
-   train_loss =train_epoch(encoder,decoder,device,
+   train_loss =train_epoch(simclr, autoencoder,device,
    train_loader,loss_fn,optim)
-   val_loss = test_epoch(encoder,decoder,device,test_loader,loss_fn)
+   val_loss = test_epoch(simclr, autoencoder ,device,test_loader,loss_fn)
    print('\n EPOCH {}/{} \t train loss {} \t val loss {}'.format(epoch + 1, num_epochs,train_loss,val_loss))
    diz_loss['train_loss'].append(train_loss)
    diz_loss['val_loss'].append(val_loss)
-#    if num_epochs % 10 == 0 :
-   plot_ae_outputs(encoder,decoder,n=10)
+   plot_ae_outputs(simclr, autoencoder,n=10)
