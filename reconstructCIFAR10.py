@@ -73,11 +73,13 @@ test_dataset  = torchvision.datasets.CIFAR10(data_dir, train=False, download=Tru
 
 train_transform = transforms.Compose([
 transforms.ToTensor(),
-transforms.Normalize((0.5,), (0.5,))])
+
+])
 
 test_transform = transforms.Compose([
 transforms.ToTensor(),
-transforms.Normalize((0.5,), (0.5,))])
+
+])
 
 train_dataset.transform = train_transform
 test_dataset.transform = test_transform
@@ -166,17 +168,29 @@ class Encoder(nn.Module):
                  latent_dim : int,
                  act_fn : object = nn.ReLU):
         super().__init__()
+        self.lin = nn.Sequential(
+            nn.Linear(512, 3*32*32),
+        )
+        c_hid=base_channel_size
+        
         self.net = nn.Sequential(
-            nn.Linear(base_channel_size, latent_dim),
-            act_fn(),
-            nn.Linear(latent_dim, latent_dim),
-            act_fn(),
-            nn.Linear(latent_dim, latent_dim),
-            act_fn(),
-            nn.Linear(latent_dim, latent_dim),
+            nn.Conv2d(num_input_channels, c_hid, kernel_size=3, padding=1, stride=2), # 32x32 => 16x16
+            # act_fn(),
+            nn.Conv2d(c_hid, c_hid, kernel_size=3, padding=1),
+            # act_fn(),
+            nn.Conv2d(c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 16x16 => 8x8
+            # act_fn(),
+            nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1),
+            # act_fn(),
+            nn.Conv2d(2*c_hid, 2*c_hid, kernel_size=3, padding=1, stride=2), # 8x8 => 4x4
+            # act_fn(),
+            nn.Flatten(), # Image grid to single feature vector
+            nn.Linear(2*16*c_hid, latent_dim)
         )
 
     def forward(self, x):
+        x = self.lin(x)
+        x = torch.reshape(x, (-1, 3, 32, 32))
         x = self.net(x)
         return x
 
@@ -232,6 +246,7 @@ class AE(nn.Module):
                  latent_dim : int,
                  act_fn : object = nn.GELU,
                  simclr: object = SimCLR,
+                 encoder: object = Encoder,
                  decoder: object = Decoder):
         """
         Inputs:
@@ -249,26 +264,19 @@ class AE(nn.Module):
             weight_decay=1e-4, 
             max_epochs=100)
         network.convnet.load_state_dict(
-            torch.load('./results/simclrCIFAR10.pt')
+            torch.load('./results/simclrCIFAR10-384-25.pt')
         )
         
         self.simclr = deepcopy(network.convnet)
         self.simclr.fc = nn.Identity()
         
         self.simclr.eval()     
-        self.encoder = nn.Sequential(
-            nn.Linear(512, 512),
-            nn.Linear(512, 512),
-            nn.Linear(512, 512),
-            nn.Linear(512, 512),
-            
-            nn.ReLU(True)
-        )
+        self.encoder = Encoder(num_input_channels=num_input_channels, base_channel_size=32, latent_dim=512)
         self.decoder = Decoder(num_input_channels=num_input_channels, base_channel_size=32, latent_dim=latent_dim)    
 
     def forward(self, x):
         x = self.simclr(x)
-        x = self.encoder(x)
+        # x = self.encoder(x)
         x = self.decoder(x)
         return x
 

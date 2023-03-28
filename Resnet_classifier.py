@@ -37,7 +37,7 @@ def prepareData(source):
     elif source == "MNIST":
         transform = transforms.Compose(
                 [transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5), (0.5, 0.5))])
+                transforms.Normalize((0.5), (0.5))])
 
         batch_size = 128
 
@@ -71,7 +71,7 @@ def loop(trainset, testset, trainloader, testloader, source):
     criterion = nn.CrossEntropyLoss()       #(set loss function)
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)   
      
-    num_epochs = 100   #(set no of epochs)
+    num_epochs = 30   #(set no of epochs)
     start_time = time.time() #(for showing time)
     for epoch in range(num_epochs): #(loop for every epoch)
         print("Epoch {} running".format(epoch)) #(printing message)``

@@ -104,7 +104,7 @@ class SimCLR(pl.LightningModule):
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
 DATASET_PATH = "./data"
 # Path to the folder where the pretrained models are saved
-CHECKPOINT_PATH = "../results/CIFAR10"
+CHECKPOINT_PATH = "./results/CIFAR10"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
 NUM_WORKERS = os.cpu_count()
@@ -208,7 +208,7 @@ simclr_model = SimCLR(
                     max_epochs=100)
 
 simclr_model.convnet.load_state_dict(
-    torch.load('./results/simclrCIFAR10-384.pt')
+    torch.load('./results/simclrCIFAR10-384-200.pt')
 )
 
 """Let's apply the function to both training and test set below."""
@@ -315,7 +315,7 @@ plt.show()
 for k, score in zip(dataset_sizes, test_scores):
     print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
 for k, score in zip(dataset_sizes, train_scores):
-    print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
+    print(f'Train accuracy for {k:3d} images per label: {100*score:4.2f}%')
 
 """As one would expect, the classification performance improves the more data we have. However, with only 10 images per class, we can already classify more than 60% of the images correctly. This is quite impressive, considering that the images are also higher dimensional than e.g. CIFAR10. With the full dataset, we achieve an accuracy of 81%. The increase between 50 to 500 images per class might suggest a linear increase in performance with an exponentially larger dataset. However, with even more data, we could also finetune $f(\cdot)$ in the training process, allowing for the representations to adapt more to the specific classification task given.
 
