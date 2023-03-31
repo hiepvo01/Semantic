@@ -328,7 +328,6 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
         torch.save(model.convnet.state_dict(), "simclrMNIST.pt")
         
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
-        trainer.save_checkpoint("'./results/MNIST/simclrMNIST.ckpt")
 
     return model
 
@@ -470,7 +469,6 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
         trainer.fit(model, train_loader, test_loader)
         
         torch.save(model.model.state_dict(), "logregMNIST.pt")
-        trainer.save_checkpoint("'./results/MNIST/logregMNIST.ckpt")
         model = LogisticRegression.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
 
     # Test best model on train and validation set
@@ -491,7 +489,7 @@ def get_smaller_dataset(original_dataset, num_imgs_per_label):
 """Next, let's run all models. Despite us training 6 models, this cell could be run within a minute or two without the pretrained models. """
 
 results = {}
-for num_imgs_per_label in [10, 20, 50, 100, 200, 500, 2000, 5000]:
+for num_imgs_per_label in [5000]:
     sub_train_set = get_smaller_dataset(train_feats_simclr, num_imgs_per_label)
     _, small_set_results = train_logreg(batch_size=64,
                                         train_feats_data=sub_train_set,
@@ -645,7 +643,7 @@ resnet_model, resnet_result = train_resnet(batch_size=64,
                                            num_classes=10,
                                            lr=1e-3,
                                            weight_decay=2e-4,
-                                           max_epochs=500)
+                                           max_epochs=100)
 print(f"Accuracy on training set: {100*resnet_result['train']:4.2f}%")
 print(f"Accuracy on test set: {100*resnet_result['test']:4.2f}%")
 

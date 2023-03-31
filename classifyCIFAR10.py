@@ -248,7 +248,6 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
         
         torch.save(model.model.state_dict(), "logregCIFAR10.pt")
         
-        trainer.save_checkpoint("'./results/CIFAR10/logregCIFAR10.ckpt")
         model = LogisticRegression.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
 
     # Test best model on train and validation set
@@ -269,7 +268,7 @@ def get_smaller_dataset(original_dataset, num_imgs_per_label):
 """Next, let's run all models. Despite us training 6 models, this cell could be run within a minute or two without the pretrained models. """
 
 results = {}
-for num_imgs_per_label in [10, 20, 50, 100, 200, 500, 2000, 5000]:
+for num_imgs_per_label in [5000]:
     sub_train_set = get_smaller_dataset(train_feats_simclr, num_imgs_per_label)
     _, small_set_results = train_logreg(batch_size=64,
                                         train_feats_data=sub_train_set,
@@ -326,97 +325,97 @@ To set the results above into perspective, we will train the base network, a Res
 As a baseline to our results above, we will train a standard ResNet-18 with random initialization on the labeled training set of CIFAR10. The results will give us an indication of the advantages that contrastive learning on unlabeled data has compared to using only supervised training. The implementation of the model is straightforward since the ResNet architecture is provided in the torchvision library.
 """
 
-# class ResNet(pl.LightningModule):
+class ResNet(pl.LightningModule):
     
-#     def __init__(self, num_classes, lr, weight_decay, max_epochs=100):
-#         super().__init__()
-#         self.save_hyperparameters()
-#         self.model = torchvision.models.resnet18(num_classes=num_classes)
+    def __init__(self, num_classes, lr, weight_decay, max_epochs=100):
+        super().__init__()
+        self.save_hyperparameters()
+        self.model = torchvision.models.resnet18(num_classes=num_classes)
 
-#     def configure_optimizers(self):
-#         optimizer = optim.AdamW(self.parameters(), 
-#                                 lr=self.hparams.lr, 
-#                                 weight_decay=self.hparams.weight_decay)
-#         lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, 
-#                                                       milestones=[int(self.hparams.max_epochs*0.7), 
-#                                                                   int(self.hparams.max_epochs*0.9)], 
-#                                                       gamma=0.1)
-#         return [optimizer], [lr_scheduler]
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(self.parameters(), 
+                                lr=self.hparams.lr, 
+                                weight_decay=self.hparams.weight_decay)
+        lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, 
+                                                      milestones=[int(self.hparams.max_epochs*0.7), 
+                                                                  int(self.hparams.max_epochs*0.9)], 
+                                                      gamma=0.1)
+        return [optimizer], [lr_scheduler]
 
-#     def _calculate_loss(self, batch, mode='train'):
-#         imgs, labels = batch
-#         preds = self.model(imgs)
-#         loss = F.cross_entropy(preds, labels)
-#         acc = (preds.argmax(dim=-1) == labels).float().mean()
+    def _calculate_loss(self, batch, mode='train'):
+        imgs, labels = batch
+        preds = self.model(imgs)
+        loss = F.cross_entropy(preds, labels)
+        acc = (preds.argmax(dim=-1) == labels).float().mean()
 
-#         self.log(mode + '_loss', loss)
-#         self.log(mode + '_acc', acc)
-#         return loss
+        self.log(mode + '_loss', loss)
+        self.log(mode + '_acc', acc)
+        return loss
 
-#     def training_step(self, batch, batch_idx):
-#         return self._calculate_loss(batch, mode='train')
+    def training_step(self, batch, batch_idx):
+        return self._calculate_loss(batch, mode='train')
 
-#     def validation_step(self, batch, batch_idx):
-#         self._calculate_loss(batch, mode='val')
+    def validation_step(self, batch, batch_idx):
+        self._calculate_loss(batch, mode='val')
 
-#     def test_step(self, batch, batch_idx):
-#         self._calculate_loss(batch, mode='test')
+    def test_step(self, batch, batch_idx):
+        self._calculate_loss(batch, mode='test')
 
-# """It is clear that the ResNet easily overfits on the training data since its parameter count is more than 1000 times larger than the dataset size. To make the comparison to the contrastive learning models fair, we apply data augmentations similar to the ones we used before: horizontal flip, crop-and-resize, grayscale, and gaussian blur. Color distortions as before are not used because the color distribution of an image showed to be an important feature for the classification. Hence, we observed no noticeable performance gains when adding color distortions to the set of augmentations. Similarly, we restrict the resizing operation before cropping to the max. 125% of its original resolution, instead of 1250% as done in SimCLR. This is because, for classification, the model needs to recognize the full object, while in contrastive learning, we only want to check whether two patches belong to the same image/object. Hence, the chosen augmentations below are overall weaker than in the contrastive learning case."""
+"""It is clear that the ResNet easily overfits on the training data since its parameter count is more than 1000 times larger than the dataset size. To make the comparison to the contrastive learning models fair, we apply data augmentations similar to the ones we used before: horizontal flip, crop-and-resize, grayscale, and gaussian blur. Color distortions as before are not used because the color distribution of an image showed to be an important feature for the classification. Hence, we observed no noticeable performance gains when adding color distortions to the set of augmentations. Similarly, we restrict the resizing operation before cropping to the max. 125% of its original resolution, instead of 1250% as done in SimCLR. This is because, for classification, the model needs to recognize the full object, while in contrastive learning, we only want to check whether two patches belong to the same image/object. Hence, the chosen augmentations below are overall weaker than in the contrastive learning case."""
 
-# train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
-#                                        transforms.RandomResizedCrop(size=96, scale=(0.8, 1.0)),
-#                                        transforms.RandomGrayscale(p=0.2),
-#                                        transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 0.5)),
-#                                        transforms.ToTensor(),
-#                                        transforms.Normalize((0.5,), (0.5,))
-#                                        ])
+train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
+                                       transforms.RandomResizedCrop(size=32, scale=(0.8, 1.0)),
+                                       transforms.RandomGrayscale(p=0.2),
+                                       transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 0.5)),
+                                       transforms.ToTensor(),
+                                       transforms.Normalize((0.5,), (0.5,))
+                                       ])
 
-# train_img_aug_data = CIFAR10(root=DATASET_PATH, train=True, download=True,
-#                            transform=train_transforms)
+train_img_aug_data = CIFAR10(root=DATASET_PATH, train=True, download=True,
+                           transform=train_transforms)
 
-# """The training function for the ResNet is almost identical to the Logistic Regression setup. Note that we allow the ResNet to perform validation every 2 epochs to also check whether the model overfits strongly in the first iterations or not."""
+"""The training function for the ResNet is almost identical to the Logistic Regression setup. Note that we allow the ResNet to perform validation every 2 epochs to also check whether the model overfits strongly in the first iterations or not."""
 
-# def train_resnet(batch_size, max_epochs=100, **kwargs):
-#     trainer = pl.Trainer(default_root_dir=os.path.join(CHECKPOINT_PATH, "ResNet"),
-#                          accelerator="gpu" if str(device).startswith("cuda") else "cpu",
-#                          devices=1,
-#                          max_epochs=max_epochs,
-#                          callbacks=[ModelCheckpoint(save_weights_only=True, mode="max", monitor="val_acc"),
-#                                     LearningRateMonitor("epoch")],
-#                          check_val_every_n_epoch=2)
-#     trainer.logger._default_hp_metric = None
+def train_resnet(batch_size, max_epochs=100, **kwargs):
+    trainer = pl.Trainer(default_root_dir=os.path.join(CHECKPOINT_PATH, "ResNet"),
+                         accelerator="gpu" if str(device).startswith("cuda") else "cpu",
+                         devices=1,
+                         max_epochs=max_epochs,
+                         callbacks=[ModelCheckpoint(save_weights_only=True, mode="max", monitor="val_acc"),
+                                    LearningRateMonitor("epoch")],
+                         check_val_every_n_epoch=2)
+    trainer.logger._default_hp_metric = None
     
-#     # Data loaders
-#     train_loader = data.DataLoader(train_img_aug_data, batch_size=batch_size, shuffle=True, 
-#                                    drop_last=True, pin_memory=True, num_workers=NUM_WORKERS)
-#     test_loader = data.DataLoader(test_img_data, batch_size=batch_size, shuffle=False, 
-#                                   drop_last=False, pin_memory=True, num_workers=NUM_WORKERS)
+    # Data loaders
+    train_loader = data.DataLoader(train_img_aug_data, batch_size=batch_size, shuffle=True, 
+                                   drop_last=True, pin_memory=True, num_workers=NUM_WORKERS)
+    test_loader = data.DataLoader(test_img_data, batch_size=batch_size, shuffle=False, 
+                                  drop_last=False, pin_memory=True, num_workers=NUM_WORKERS)
 
-#     # Check whether pretrained model exists. If yes, load it and skip training
-#     pretrained_filename = os.path.join(CHECKPOINT_PATH, "ResNet.ckpt")
-#     if os.path.isfile(pretrained_filename):
-#         print("Found pretrained model at %s, loading..." % pretrained_filename)
-#         model = ResNet.load_from_checkpoint(pretrained_filename)
-#     else:
-#         pl.seed_everything(42) # To be reproducable
-#         model = ResNet(**kwargs)
-#         trainer.fit(model, train_loader, test_loader)
-#         model = ResNet.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
+    # Check whether pretrained model exists. If yes, load it and skip training
+    pretrained_filename = os.path.join(CHECKPOINT_PATH, "ResNet.ckpt")
+    if os.path.isfile(pretrained_filename):
+        print("Found pretrained model at %s, loading..." % pretrained_filename)
+        model = ResNet.load_from_checkpoint(pretrained_filename)
+    else:
+        pl.seed_everything(42) # To be reproducable
+        model = ResNet(**kwargs)
+        trainer.fit(model, train_loader, test_loader)
+        model = ResNet.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
 
-#     # Test best model on validation set
-#     train_result = trainer.test(model, train_loader, verbose=False)
-#     val_result = trainer.test(model, test_loader, verbose=False)
-#     result = {"train": train_result[0]["test_acc"], "test": val_result[0]["test_acc"]}
+    # Test best model on validation set
+    train_result = trainer.test(model, train_loader, verbose=False)
+    val_result = trainer.test(model, test_loader, verbose=False)
+    result = {"train": train_result[0]["test_acc"], "test": val_result[0]["test_acc"]}
         
-#     return model, result
+    return model, result
 
-# """Finally, let's train the model and check its results:"""
+"""Finally, let's train the model and check its results:"""
 
-# resnet_model, resnet_result = train_resnet(batch_size=64,
-#                                            num_classes=10,
-#                                            lr=1e-3,
-#                                            weight_decay=2e-4,
-#                                            max_epochs=100)
-# print(f"Accuracy on training set: {100*resnet_result['train']:4.2f}%")
-# print(f"Accuracy on test set: {100*resnet_result['test']:4.2f}%")
+resnet_model, resnet_result = train_resnet(batch_size=64,
+                                           num_classes=10,
+                                           lr=1e-3,
+                                           weight_decay=2e-4,
+                                           max_epochs=100)
+print(f"Accuracy on training set: {100*resnet_result['train']:4.2f}%")
+print(f"Accuracy on test set: {100*resnet_result['test']:4.2f}%")
