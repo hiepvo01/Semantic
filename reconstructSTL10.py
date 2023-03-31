@@ -271,7 +271,7 @@ class AE(nn.Module):
 
     def forward(self, x):
         x = self.simclr(x)
-        x = self.encoder(x)
+        # x = self.encoder(x)
         x = self.decoder(x)
         return x
 

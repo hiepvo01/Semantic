@@ -166,7 +166,7 @@ Overall, for our experiments, we apply a set of 5 transformations following the 
 """
 
 contrast_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
-                                          transforms.RandomResizedCrop(size=96),
+                                          transforms.RandomResizedCrop(size=28),
                                         #   transforms.RandomApply([
                                         #       transforms.ColorJitter(brightness=0.5, 
                                         #                              contrast=0.5, 
@@ -179,7 +179,7 @@ contrast_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
                                           transforms.Normalize((0.5,), (0.5,))
                                          ])
 
-"""After discussing the data augmentation techniques, we can now focus on the dataset. In this tutorial, we will use the [MNIST dataset](https://cs.stanford.edu/~acoates/MNIST/), which, similarly to MNIST, contains images of 10 classes: airplane, bird, car, cat, deer, dog, horse, monkey, ship, truck. However, the images have a higher resolution, namely $96\times 96$ pixels, and we are only provided with 500 labeled images per class. Additionally, we have a much larger set of $100,000$ unlabeled images which are similar to the training images but are sampled from a wider range of animals and vehicles. This makes the dataset ideal to showcase the benefits that self-supervised learning offers.
+"""After discussing the data augmentation techniques, we can now focus on the dataset. In this tutorial, we will use the [MNIST dataset](https://cs.stanford.edu/~acoates/MNIST/), which, similarly to MNIST, contains images of 10 classes: airplane, bird, car, cat, deer, dog, horse, monkey, ship, truck. However, the images have a higher resolution, namely $28\times 28$ pixels, and we are only provided with 500 labeled images per class. Additionally, we have a much larger set of $100,000$ unlabeled images which are similar to the training images but are sampled from a wider range of animals and vehicles. This makes the dataset ideal to showcase the benefits that self-supervised learning offers.
 
 Luckily, the MNIST dataset is provided through torchvision. Keep in mind, however, that since this dataset is relatively large and has a considerably higher resolution than MNIST, it requires more disk space (~3GB) and takes a bit of time to download. For our initial discussion of self-supervised learning and SimCLR, we will create two data loaders with our contrastive transformations above: the `unlabeled_data` will be used to train our model via contrastive learning, and `train_data_contrast` will be used as a validation set in contrastive learning.
 """
@@ -339,7 +339,7 @@ simclr_model = train_simclr(batch_size=256,
                             lr=5e-4, 
                             temperature=0.07, 
                             weight_decay=1e-4, 
-                            max_epochs=500)
+                            max_epochs=200)
 
 """To get an intuition of how training with contrastive learning behaves, we can take a look at the TensorBoard below:"""
 
@@ -593,7 +593,7 @@ class ResNet(pl.LightningModule):
 """It is clear that the ResNet easily overfits on the training data since its parameter count is more than 1000 times larger than the dataset size. To make the comparison to the contrastive learning models fair, we apply data augmentations similar to the ones we used before: horizontal flip, crop-and-resize, grayscale, and gaussian blur. Color distortions as before are not used because the color distribution of an image showed to be an important feature for the classification. Hence, we observed no noticeable performance gains when adding color distortions to the set of augmentations. Similarly, we restrict the resizing operation before cropping to the max. 125% of its original resolution, instead of 1250% as done in SimCLR. This is because, for classification, the model needs to recognize the full object, while in contrastive learning, we only want to check whether two patches belong to the same image/object. Hence, the chosen augmentations below are overall weaker than in the contrastive learning case."""
 
 train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
-                                       transforms.RandomResizedCrop(size=96, scale=(0.8, 1.0)),
+                                       transforms.RandomResizedCrop(size=28, scale=(0.8, 1.0)),
                                        transforms.RandomGrayscale(p=0.2),
                                        transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 0.5)),
                                        transforms.ToTensor(),
