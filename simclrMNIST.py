@@ -325,7 +325,7 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
         model = SimCLR(max_epochs=max_epochs, **kwargs)
         trainer.fit(model, train_loader, val_loader)
 
-        torch.save(model.convnet.state_dict(), "simclrMNIST.pt")
+        torch.save(model.convnet.state_dict(), "simclrMNIST-200.pt")
         
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
 
