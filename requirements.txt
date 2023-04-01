@@ -4,3 +4,4 @@ seaborn
 pytorch-lightning>=1.4
 debuggy
 tqdm
+pytorch-msssim
