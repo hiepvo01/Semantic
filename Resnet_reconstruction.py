@@ -48,6 +48,22 @@ def prepareData(source):
                                             download=True, transform=transform)
         testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
                                                 shuffle=False, num_workers=2)
+        
+    elif source == "STL10":
+        transform = transforms.Compose(
+                [transforms.ToTensor(),])
+
+        batch_size = 128
+        
+        trainset = torchvision.datasets.STL10(root='./data', split='unlabeled',
+                                                download=True, transform=transform)
+        trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
+                                                shuffle=True, num_workers=2)
+
+        testset = torchvision.datasets.MNIST(root='./data', split='test',
+                                            download=True, transform=transform)
+        testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+                                                shuffle=False, num_workers=2)
     return trainset, testset, trainloader, testloader
 
 class Decoder(nn.Module):
@@ -67,7 +83,7 @@ class Decoder(nn.Module):
         super().__init__()
         c_hid = base_channel_size
         self.linear = nn.Sequential(
-            nn.Linear(latent_dim, 2*16*c_hid),
+            nn.Linear(latent_dim, 2*12*12*c_hid),
             act_fn()
         )
         self.net = nn.Sequential(
@@ -89,7 +105,7 @@ class Decoder(nn.Module):
 
     def forward(self, x):
         x = self.linear(x)
-        x = x.reshape(x.shape[0], -1, 4, 4)
+        x = x.reshape(x.shape[0], -1, 12, 12)
         x = self.net(x)
         return x
     
@@ -216,6 +232,8 @@ def loop(trainset, testset, trainloader, testloader, source):
         epoch_loss = running_loss / len(trainset)
         print('[Train #{}] Loss: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, time.time() -start_time))
         
+        plot_ae_outputs(model, decoder, testset, source)
+        
         """ Testing Phase """
         model.eval()
         decoder.eval()
@@ -230,7 +248,7 @@ def loop(trainset, testset, trainloader, testloader, source):
             epoch_loss = running_loss / len(testset)
             print('[Test #{}] Loss: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, time.time()- start_time))
             
-        plot_ae_outputs(model, decoder, testset, source)
+        
     save_path = './results/traditional/' + source +  'encoder.pt'
     torch.save(model.state_dict(), save_path)
     save_path = './results/traditional/' + source +  'decoder.pt'
@@ -238,7 +256,7 @@ def loop(trainset, testset, trainloader, testloader, source):
 
 
 if __name__ == '__main__':    
-    source = "MNIST" # Choose between CIFAR10 or MNIST
+    source = "STL10" # Choose between CIFAR10 or MNIST
     os.makedirs("./results/traditional", exist_ok=True)
     trainset, testset, trainloader, testloader = prepareData(source)
     loop(trainset, testset, trainloader, testloader, source)
