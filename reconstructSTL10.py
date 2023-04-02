@@ -9,6 +9,9 @@ from torch.utils.data import DataLoader,random_split
 ## Standard libraries
 from copy import deepcopy
 
+from pytorch_msssim import ssim, ms_ssim
+import pandas as pd
+import time
 ## Imports for plotting
 plt.set_cmap('cividis')
 # %matplotlib inline
@@ -74,13 +77,11 @@ test_dataset  = torchvision.datasets.STL10(data_dir, split='test', download=True
 
 train_transform = transforms.Compose([
 
-transforms.ToTensor(),
-transforms.Normalize((0.5,), (0.5,))])
+transforms.ToTensor(),])
 
 test_transform = transforms.Compose([
 
-transforms.ToTensor(),
-transforms.Normalize((0.5,), (0.5,))])
+transforms.ToTensor(),])
 
 train_dataset.transform = train_transform
 test_dataset.transform = test_transform
@@ -341,13 +342,13 @@ def train_epoch(simclr, autoencoder, device, dataloader, loss_fn, optimizer):
         loss.backward()
         optimizer.step()
         # Print batch loss
-        print('\t partial train loss (single batch): %f' % (loss.data))
         train_loss.append(loss.detach().cpu().numpy())
 
     return np.mean(train_loss)
 
 ### Testing function
 def test_epoch(simclr, autoencoder, device, dataloader, loss_fn):
+    ssim_epoch = 0
     # Set evaluation mode for encoder and decoder
     simclr.eval()
     autoencoder.train()
@@ -362,6 +363,11 @@ def test_epoch(simclr, autoencoder, device, dataloader, loss_fn):
             # encoded_data = simclr(image_batch)
             # Decode data
             decoded_data = autoencoder(image_batch)
+            
+            ssim_batch = ssim(decoded_data, image_batch, win_size=11,
+                                size_average=False, data_range=1)
+            ssim_epoch += torch.sum(ssim_batch).item()
+                
             # Append the network output and the original image to the lists
             conc_out.append(decoded_data.cpu())
             conc_label.append(image_batch.cpu())
@@ -370,7 +376,7 @@ def test_epoch(simclr, autoencoder, device, dataloader, loss_fn):
         conc_label = torch.cat(conc_label) 
         # Evaluate global loss
         val_loss = loss_fn(conc_out, conc_label)
-    return val_loss.data
+    return val_loss.data, ssim_epoch / 8000
 
 def plot_ae_outputs(simclr, autoencoder,n=10):
     plt.figure(figsize=(16,4.5))
@@ -400,13 +406,23 @@ def plot_ae_outputs(simclr, autoencoder,n=10):
          ax.set_title('Reconstructed images')
     plt.savefig('./figures/STL10/STLreconstruct_epoch_' + str(epoch)+'.png')
     
-num_epochs = 50
+num_epochs = 30
+times = []
+epochs = []
+ssims = []
 diz_loss = {'train_loss':[],'val_loss':[]}
+start_time = time.time()
+
 for epoch in range(num_epochs):
+   epochs.append(epoch)
    train_loss =train_epoch(simclr, autoencoder,device,
    train_loader,loss_fn,optim)
-   val_loss = test_epoch(simclr, autoencoder ,device,test_loader,loss_fn)
-   print('\n EPOCH {}/{} \t train loss {} \t val loss {}'.format(epoch + 1, num_epochs,train_loss,val_loss))
+   val_loss, ssim = test_epoch(simclr, autoencoder ,device,test_loader,loss_fn)
+   
+   times.append(time.time() -start_time)
+   ssims.append(ssim)
+   
+   print('\n EPOCH {}/{} \t train loss {} \t val loss {} \t ssim {} \t time {}'.format(epoch + 1, num_epochs,train_loss,val_loss, ssim, time.time() - start_time))
    diz_loss['train_loss'].append(train_loss)
    diz_loss['val_loss'].append(val_loss)
    plot_ae_outputs(simclr, autoencoder,n=10)

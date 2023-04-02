@@ -65,6 +65,7 @@ def prepareData(source):
 
         testset = torchvision.datasets.STL10(root='./data', split='test',
                                             download=True, transform=transform)
+        print(len(testset))
         testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
                                                 shuffle=False, num_workers=2)
     return trainset, testset, trainloader, testloader
@@ -196,7 +197,7 @@ def loop(trainset, testset, trainloader, testloader, source):
     model = models.resnet18()
     num_features = model.fc.in_features     #extract fc layers features
     model.fc = nn.Linear(num_features, 512)
-    decoder = Decoder(num_input_channels=3, base_channel_size=32, latent_dim=num_features)
+    decoder = Decoder(num_input_channels=3, base_channel_size=96, latent_dim=num_features)
     if source == "MNIST":
         model.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
         decoder = MNISTDecoder(encoded_space_dim=num_features)
@@ -236,16 +237,6 @@ def loop(trainset, testset, trainloader, testloader, source):
             outputs = model(inputs)
             reconstructs = decoder(outputs)
                         
-            if source == 'MNIST':
-                trainsize = 60000
-                ssim_batch = ssim(reconstructs, inputs, win_size=11,
-                        size_average=False, data_range=1)
-            elif source == 'STL10':
-                trainsize = 100000    
-                ssim_batch = ssim(reconstructs, inputs, win_size=11,
-                        size_average=False, data_range=255)
-            ssim_epoch += torch.sum(ssim_batch).item()
-
             loss = criterion(reconstructs, inputs)
             # get loss value and update the network weights
             loss.backward()
@@ -253,16 +244,9 @@ def loop(trainset, testset, trainloader, testloader, source):
             running_loss += loss.item() * inputs.size(0)
         
         epoch_loss = running_loss / len(trainset)
-        times.append(time.time() -start_time)
-        ssims.append(ssim_epoch/trainsize)
-        epochs.append(epoch)
-        print('[Train #{}] Loss: {:.4f} SSIM: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, ssim_epoch/trainsize, time.time() -start_time))
+        print('[Train #{}] Loss: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, time.time() -start_time))
         
-        # Calling DataFrame constructor after zipping
-        # both lists, with columns specified
-        df = pd.DataFrame(list(zip(epochs, ssims, times)),
-                    columns =['Epoch', 'SSIM', 'Time'])
-        df.to_csv('./results/traditional/' + source + '_traditional.csv')
+        plot_ae_outputs(model, decoder, testset, source, epoch)
         
         """ Testing Phase """
         model.eval()
@@ -273,10 +257,31 @@ def loop(trainset, testset, trainloader, testloader, source):
                 inputs = inputs.to(device)
                 outputs = model(inputs)
                 reconstructs = decoder(outputs)
+                
+                if source == 'MNIST':
+                    trainsize = 10000
+                    ssim_batch = ssim(reconstructs, inputs, win_size=11,
+                            size_average=False, data_range=1)
+                elif source == 'STL10':
+                    trainsize = 8000    
+                    ssim_batch = ssim(reconstructs, inputs, win_size=11,
+                            size_average=False, data_range=255)
+                ssim_epoch += torch.sum(ssim_batch).item()
+                
                 loss = criterion(reconstructs, inputs)
                 running_loss += loss.item() * inputs.size(0)
+                
+            times.append(time.time() -start_time)
+            ssims.append(ssim_epoch/trainsize)
+            epochs.append(epoch)
             epoch_loss = running_loss / len(testset)
-            print('[Test #{}] Loss: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, time.time()- start_time))
+            print('[Test #{}] Loss: {:.4f} SSIM: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, ssim_epoch/trainsize ,time.time()- start_time))
+            
+        # Calling DataFrame constructor after zipping
+        # both lists, with columns specified
+        df = pd.DataFrame(list(zip(epochs, ssims, times)),
+                    columns =['Epoch', 'SSIM', 'Time'])
+        df.to_csv('./results/traditional/' + source + '_traditional.csv')
             
         
     save_path = './results/traditional/' + source +  'encoder.pt'
@@ -286,7 +291,7 @@ def loop(trainset, testset, trainloader, testloader, source):
 
 
 if __name__ == '__main__':    
-    source = "STL10" # Choose between CIFAR10 or MNIST
+    source = "STL10" # Choose between STL10 or MNIST
     os.makedirs("./results/traditional", exist_ok=True)
     trainset, testset, trainloader, testloader = prepareData(source)
     loop(trainset, testset, trainloader, testloader, source)

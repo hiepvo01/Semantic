@@ -28,6 +28,10 @@ import torch.nn.functional as F
 import torch.utils.data as data
 import torch.optim as optim
 
+import time
+import pandas as pd
+from pytorch_msssim import ssim, ms_ssim
+
 ## Torchvision
 import torchvision
 from torchvision.datasets import MNIST
@@ -214,7 +218,7 @@ encoder = SimCLR(
             max_epochs=100)
 
 encoder.convnet.load_state_dict(
-    torch.load('./results/simclrMNIST.pt')
+    torch.load('./results/simclrMNIST-200.pt')
 )
 
 decoder = Decoder(encoded_space_dim=d)
@@ -254,13 +258,14 @@ def train_epoch(encoder, decoder, device, dataloader, loss_fn, optimizer):
         loss.backward()
         optimizer.step()
         # Print batch loss
-        print('\t partial train loss (single batch): %f' % (loss.data))
         train_loss.append(loss.detach().cpu().numpy())
 
     return np.mean(train_loss)
 
 ### Testing function
 def test_epoch(encoder, decoder, device, dataloader, loss_fn):
+    ssim_epoch = 0
+    
     # Set evaluation mode for encoder and decoder
     encoder.eval()
     decoder.eval()
@@ -275,6 +280,15 @@ def test_epoch(encoder, decoder, device, dataloader, loss_fn):
             encoded_data = encoder(image_batch)
             # Decode data
             decoded_data = decoder(encoded_data)
+            
+            try:
+                ssim_batch = ssim(decoded_data, image_batch, win_size=11,
+                                size_average=False, data_range=1)
+                print(len(ssim_batch))
+                ssim_epoch += torch.sum(ssim_batch).item()
+            except:
+                ssim_epoch += 0
+            
             # Append the network output and the original image to the lists
             conc_out.append(decoded_data.cpu())
             conc_label.append(image_batch.cpu())
@@ -283,7 +297,7 @@ def test_epoch(encoder, decoder, device, dataloader, loss_fn):
         conc_label = torch.cat(conc_label) 
         # Evaluate global loss
         val_loss = loss_fn(conc_out, conc_label)
-    return val_loss.data
+    return val_loss.data, ssim_epoch / 10000
 
 def plot_ae_outputs(encoder,decoder,n=10):
     plt.figure(figsize=(16,4.5))
@@ -311,11 +325,21 @@ def plot_ae_outputs(encoder,decoder,n=10):
     plt.savefig('./figures/MNIST/MNISTreconstruct_epoch_' + str(epoch)+'.png')
     
 num_epochs = 30
+times = []
+epochs = []
+ssims = []
 diz_loss = {'train_loss':[],'val_loss':[]}
+start_time = time.time()
 for epoch in range(num_epochs):
+   epochs.append(epoch)
+   
    train_loss =train_epoch(encoder,decoder,device,
    train_loader,loss_fn,optim)
-   val_loss = test_epoch(encoder,decoder,device,test_loader,loss_fn)
+   val_loss, ssim = test_epoch(encoder,decoder,device,test_loader,loss_fn)
+   
+   times.append(time.time() -start_time)
+   ssims.append(ssim)
+   
    print('\n EPOCH {}/{} \t train loss {} \t val loss {}'.format(epoch + 1, num_epochs,train_loss,val_loss))
    diz_loss['train_loss'].append(train_loss)
    diz_loss['val_loss'].append(val_loss)

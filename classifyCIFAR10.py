@@ -14,6 +14,7 @@ sns.set()
 
 ## tqdm for loading bars
 from tqdm.notebook import tqdm
+from copy import deepcopy
 
 ## PyTorch
 import torch
@@ -208,7 +209,7 @@ simclr_model = SimCLR(
                     max_epochs=100)
 
 simclr_model.convnet.load_state_dict(
-    torch.load('./results/simclrCIFAR10-384-200.pt')
+    torch.load('./results/simclrSTL10.pt')
 )
 
 """Let's apply the function to both training and test set below."""
