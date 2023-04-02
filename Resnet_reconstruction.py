@@ -9,8 +9,9 @@ import cv2
 import time
 import os
 import torch.nn.functional as F
-
+from pytorch_msssim import ssim, ms_ssim
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") # device object
+import pandas as pd
 
 def prepareData(source):
     source = source
@@ -48,8 +49,10 @@ def prepareData(source):
                                             download=True, transform=transform)
         testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
                                                 shuffle=False, num_workers=2)
+        trainsize = 60000
         
     elif source == "STL10":
+        trainsize = 100000
         transform = transforms.Compose(
                 [transforms.ToTensor(),])
 
@@ -60,7 +63,7 @@ def prepareData(source):
         trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
                                                 shuffle=True, num_workers=2)
 
-        testset = torchvision.datasets.MNIST(root='./data', split='test',
+        testset = torchvision.datasets.STL10(root='./data', split='test',
                                             download=True, transform=transform)
         testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
                                                 shuffle=False, num_workers=2)
@@ -150,12 +153,14 @@ def imshow(img):
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()
 
-def plot_ae_outputs(encoder,decoder, test_dataset, source,n=10):
+def plot_ae_outputs(encoder,decoder, test_dataset, source, epoch,n=10):
     plt.figure(figsize=(16,4.5))
+    
     try:
         targets = test_dataset.targets.numpy()
     except:
-        targets = np.array(test_dataset.targets)
+        # targets = np.array(test_dataset.targets)
+        targets = np.array(test_dataset.labels) 
 
     t_idx = {i:np.where(targets==i)[0][0] for i in range(n)}
     for i in range(n):
@@ -184,7 +189,7 @@ def plot_ae_outputs(encoder,decoder, test_dataset, source,n=10):
       ax.get_yaxis().set_visible(False)  
       if i == n//2:
          ax.set_title('Reconstructed images')
-    plt.savefig('./results/traditional/' + source +'.png')
+    plt.savefig('./results/traditional/' + source + '_epoch_' +str(epoch) +'.png')
 
 
 def loop(trainset, testset, trainloader, testloader, source):
@@ -207,10 +212,17 @@ def loop(trainset, testset, trainloader, testloader, source):
     ]
 
     optimizer = torch.optim.Adam(params_to_optimize, lr=0.001, weight_decay=1e-05)
+    
      
     num_epochs = 30   #(set no of epochs)
     start_time = time.time() #(for showing time)
+    
+    times = []
+    epochs = []
+    ssims = []
+    
     for epoch in range(num_epochs): #(loop for every epoch)
+        ssim_epoch = 0
         print("Epoch {} running".format(epoch)) #(printing message)``
         """ Training Phase """
         model.train()    #(training model)
@@ -223,16 +235,34 @@ def loop(trainset, testset, trainloader, testloader, source):
             optimizer.zero_grad()
             outputs = model(inputs)
             reconstructs = decoder(outputs)
+                        
+            if source == 'MNIST':
+                trainsize = 60000
+                ssim_batch = ssim(reconstructs, inputs, win_size=11,
+                        size_average=False, data_range=1)
+            elif source == 'STL10':
+                trainsize = 100000    
+                ssim_batch = ssim(reconstructs, inputs, win_size=11,
+                        size_average=False, data_range=255)
+            ssim_epoch += torch.sum(ssim_batch).item()
 
             loss = criterion(reconstructs, inputs)
             # get loss value and update the network weights
             loss.backward()
             optimizer.step()
             running_loss += loss.item() * inputs.size(0)
-        epoch_loss = running_loss / len(trainset)
-        print('[Train #{}] Loss: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, time.time() -start_time))
         
-        plot_ae_outputs(model, decoder, testset, source)
+        epoch_loss = running_loss / len(trainset)
+        times.append(time.time() -start_time)
+        ssims.append(ssim_epoch/trainsize)
+        epochs.append(epoch)
+        print('[Train #{}] Loss: {:.4f} SSIM: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, ssim_epoch/trainsize, time.time() -start_time))
+        
+        # Calling DataFrame constructor after zipping
+        # both lists, with columns specified
+        df = pd.DataFrame(list(zip(epochs, ssims, times)),
+                    columns =['Epoch', 'SSIM', 'Time'])
+        df.to_csv('./results/traditional/' + source + '_traditional.csv')
         
         """ Testing Phase """
         model.eval()
