@@ -180,8 +180,31 @@ def plot_ae_outputs(encoder,decoder, test_dataset, source, epoch,n=10):
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
 
-    plt.savefig('./results/traditional/' + source + '_epoch_' +str(epoch) +'.png')
-    plt.savefig('./results/traditional/' + source + '_epoch_' +str(epoch) +'.pdf')
+    plt.savefig('./results/traditional/' + source + '_epoch_' +str(epoch) +'.png', bbox_inches='tight')
+    plt.savefig('./results/traditional/' + source + '_epoch_' +str(epoch) +'.pdf', bbox_inches='tight')
+    
+    plt.figure(figsize=(16,4.5))
+    
+    try:
+        targets = test_dataset.targets.numpy()
+    except:
+        # targets = np.array(test_dataset.targets)
+        targets = np.array(test_dataset.labels) 
+
+    t_idx = {i:np.where(targets==i)[0][0] for i in range(n)}
+    for i in range(n):
+      ax = plt.subplot(1,n,i+1)
+      img = test_dataset[t_idx[i]][0].unsqueeze(0).to(device)
+      try:
+        plt.imshow(img.cpu().squeeze().numpy(), cmap='gist_gray')  
+      except:
+        plt.imshow(img.cpu().squeeze().permute(1, 2, 0).numpy(), cmap='gist_gray')
+
+      ax.get_xaxis().set_visible(False)
+      ax.get_yaxis().set_visible(False)  
+
+    plt.savefig('./results/traditional/' + source + 'original.png', bbox_inches='tight')
+    plt.savefig('./results/traditional/' + source + 'original.pdf', bbox_inches='tight')
 
 
 def loop(trainset, testset, trainloader, testloader, source):
@@ -282,24 +305,24 @@ def loop(trainset, testset, trainloader, testloader, source):
 
 
 if __name__ == '__main__':    
-    source = "MNIST" # Choose between STL10 or MNIST
+    source = "STL10" # Choose between STL10 or MNIST
     os.makedirs("./results/traditional", exist_ok=True)
     trainset, testset, trainloader, testloader = prepareData(source)
-    loop(trainset, testset, trainloader, testloader, source)
+    # loop(trainset, testset, trainloader, testloader, source)
     
-    # model = models.resnet18()
-    # num_features = model.fc.in_features     #extract fc layers features
-    # model.fc = nn.Linear(num_features, 512)
-    # decoder = Decoder(num_input_channels=3, base_channel_size=96, latent_dim=num_features)
+    model = models.resnet18()
+    num_features = model.fc.in_features     #extract fc layers features
+    model.fc = nn.Linear(num_features, 512)
+    decoder = Decoder(num_input_channels=3, base_channel_size=32, latent_dim=num_features)
     
-    # if source == "MNIST":
-    #     model.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-    #     decoder = MNISTDecoder(encoded_space_dim=num_features)
+    if source == "MNIST":
+        model.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        decoder = MNISTDecoder(encoded_space_dim=num_features)
     
-    # model.load_state_dict(torch.load('./results/traditional/' + source +  'encoder.pt'))
-    # decoder.load_state_dict(torch.load('./results/traditional/' + source +  'decoder.pt'))
+    model.load_state_dict(torch.load('./results/traditional/' + source +  'encoder.pt'))
+    decoder.load_state_dict(torch.load('./results/traditional/' + source +  'decoder.pt'))
     
-    # model = model.to(device) 
-    # decoder = decoder.to(device)
+    model = model.to(device) 
+    decoder = decoder.to(device)
     
-    # plot_ae_outputs(model, decoder, testset, source, epoch=1000)
+    plot_ae_outputs(model, decoder, testset, source, epoch=1000)
