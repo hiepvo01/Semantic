@@ -238,22 +238,14 @@ def plot_ae_outputs(encoder,decoder, test_dataset, source, epoch,n=10):
 
     t_idx = {i:np.where(targets==i)[0][0] for i in range(n)}
     for i in range(n):
-      ax = plt.subplot(2,n,i+1)
+      ax = plt.subplot(1,n,i+1)
       img = test_dataset[t_idx[i]][0].unsqueeze(0).to(device)
+      t = transforms.RandomRotation(90)
+      img = t(img)
       encoder.eval()
       decoder.eval()
       with torch.no_grad():
          rec_img  = decoder(encoder(img))
-      try:
-        plt.imshow(img.cpu().squeeze().numpy(), cmap='gist_gray')
-      except:
-        plt.imshow(img.T.cpu().squeeze().numpy(), cmap='gist_gray')
-
-      ax.get_xaxis().set_visible(False)
-      ax.get_yaxis().set_visible(False)  
-      if i == n//2:
-        ax.set_title('Original images')
-      ax = plt.subplot(2, n, i + 1 + n)
       try:
         plt.imshow(rec_img.cpu().squeeze().numpy(), cmap='gist_gray')  
       except:
@@ -261,9 +253,8 @@ def plot_ae_outputs(encoder,decoder, test_dataset, source, epoch,n=10):
 
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
-      if i == n//2:
-         ax.set_title('Reconstructed images')
-    plt.savefig('./figures/STL10/' + source + '_epoch_' +str(epoch) +'.png')
+
+    plt.savefig('./figures/STL10/' + source + '_epoch_' +str(epoch) +'.pdf', bbox_inches='tight')
 
 
 def loop(trainset, testset, trainloader, testloader, source):
@@ -373,7 +364,7 @@ def loop(trainset, testset, trainloader, testloader, source):
         df.to_csv('./results/STL10/' + source + '_SIMCLR.csv')
             
         
-    save_path = './results/STIL10/' + source +  'encoder.pt'
+    save_path = './results/STL10/' + source +  'encoder.pt'
     torch.save(model.state_dict(), save_path)
     save_path = './results/STL10/' + source +  'decoder.pt'
     torch.save(decoder.state_dict(), save_path)

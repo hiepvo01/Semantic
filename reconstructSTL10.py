@@ -378,33 +378,34 @@ def test_epoch(simclr, autoencoder, device, dataloader, loss_fn):
         val_loss = loss_fn(conc_out, conc_label)
     return val_loss.data, ssim_epoch / 8000
 
-def plot_ae_outputs(simclr, autoencoder,n=10):
+def plot_ae_outputs(encoder,decoder, test_dataset, source, epoch,n=10):
     plt.figure(figsize=(16,4.5))
     
-    # targets = np.asarray(test_dataset.targets)
-    targets = test_dataset.labels
-    
+    try:
+        targets = test_dataset.targets.numpy()
+    except:
+        # targets = np.array(test_dataset.targets)
+        targets = np.array(test_dataset.labels) 
+
     t_idx = {i:np.where(targets==i)[0][0] for i in range(n)}
     for i in range(n):
-      ax = plt.subplot(2,n,i+1)
+      ax = plt.subplot(1,n,i+1)
       img = test_dataset[t_idx[i]][0].unsqueeze(0).to(device)
-      autoencoder.eval()
-
+      t = transforms.RandomRotation(90)
+      img = t(img)
+      encoder.eval()
+      decoder.eval()
       with torch.no_grad():
-         rec_img  = autoencoder(img)
-         
-      plt.imshow(img.T.cpu().squeeze().numpy())
+         rec_img  = decoder(encoder(img))
+      try:
+        plt.imshow(rec_img.cpu().squeeze().numpy(), cmap='gist_gray')  
+      except:
+        plt.imshow(rec_img.T.cpu().squeeze().numpy(), cmap='gist_gray')
+
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
-      if i == n//2:
-        ax.set_title('Original images')
-      ax = plt.subplot(2, n, i + 1 + n)
-      plt.imshow(rec_img.T.cpu().squeeze().numpy())  
-      ax.get_xaxis().set_visible(False)
-      ax.get_yaxis().set_visible(False)  
-      if i == n//2:
-         ax.set_title('Reconstructed images')
-    plt.savefig('./figures/STL10/STLreconstruct_epoch_' + str(epoch)+'.png')
+
+    plt.savefig('./figures/STL10/' + source + '_epoch_' +str(epoch) +'.pdf', bbox_inches='tight')
     
 num_epochs = 30
 times = []
