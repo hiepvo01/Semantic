@@ -348,7 +348,6 @@ def train_epoch(simclr, autoencoder, device, dataloader, loss_fn, optimizer):
 
 ### Testing function
 def test_epoch(simclr, autoencoder, device, dataloader, loss_fn):
-    ssim_epoch = 0
     # Set evaluation mode for encoder and decoder
     simclr.eval()
     autoencoder.train()
@@ -363,10 +362,6 @@ def test_epoch(simclr, autoencoder, device, dataloader, loss_fn):
             # encoded_data = simclr(image_batch)
             # Decode data
             decoded_data = autoencoder(image_batch)
-            
-            ssim_batch = ssim(decoded_data, image_batch, win_size=11,
-                                size_average=False, data_range=1)
-            ssim_epoch += torch.sum(ssim_batch).item()
                 
             # Append the network output and the original image to the lists
             conc_out.append(decoded_data.cpu())
@@ -376,7 +371,7 @@ def test_epoch(simclr, autoencoder, device, dataloader, loss_fn):
         conc_label = torch.cat(conc_label) 
         # Evaluate global loss
         val_loss = loss_fn(conc_out, conc_label)
-    return val_loss.data, ssim_epoch / 8000
+    return val_loss.data
 
 def plot_ae_outputs(simclr, autoencoder,n=10):
     plt.figure(figsize=(16,4.5))
@@ -392,37 +387,24 @@ def plot_ae_outputs(simclr, autoencoder,n=10):
 
       with torch.no_grad():
          rec_img  = autoencoder(img)
-         
-      plt.imshow(img.T.cpu().squeeze().numpy())
+         rec_img = rec_img.cpu().squeeze().permute(1, 2, 0).numpy()
+      plt.imshow(rec_img)  
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
-      if i == n//2:
-        ax.set_title('Original images')
-      ax = plt.subplot(2, n, i + 1 + n)
-      plt.imshow(rec_img.T.cpu().squeeze().numpy())  
-      ax.get_xaxis().set_visible(False)
-      ax.get_yaxis().set_visible(False)  
-      if i == n//2:
-         ax.set_title('Reconstructed images')
-    plt.savefig('./figures/STL10/STLreconstruct_epoch_' + str(epoch)+'.png')
-    
+
+    plt.savefig('./figures/STL10/STLreconstruct_epoch_' + str(epoch)+'.png', bbox_inches='tight')
+    plt.savefig('./figures/STL10/STLreconstruct_epoch_' + str(epoch)+'.pdf', bbox_inches='tight')
 num_epochs = 30
-times = []
-epochs = []
-ssims = []
+
 diz_loss = {'train_loss':[],'val_loss':[]}
 start_time = time.time()
 
 for epoch in range(num_epochs):
-   epochs.append(epoch)
    train_loss =train_epoch(simclr, autoencoder,device,
    train_loader,loss_fn,optim)
-   val_loss, ssim = test_epoch(simclr, autoencoder ,device,test_loader,loss_fn)
-   
-   times.append(time.time() -start_time)
-   ssims.append(ssim)
-   
-   print('\n EPOCH {}/{} \t train loss {} \t val loss {} \t ssim {} \t time {}'.format(epoch + 1, num_epochs,train_loss,val_loss, ssim, time.time() - start_time))
+   val_loss = test_epoch(simclr, autoencoder ,device,test_loader,loss_fn)
+
+   print('\n EPOCH {}/{} \t train loss {} \t val loss {} \t time {}'.format(epoch + 1, num_epochs,train_loss,val_loss, time.time() - start_time))
    diz_loss['train_loss'].append(train_loss)
    diz_loss['val_loss'].append(val_loss)
    plot_ae_outputs(simclr, autoencoder,n=10)
