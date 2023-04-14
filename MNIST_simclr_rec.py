@@ -281,10 +281,10 @@ def loop(trainset, testset, trainloader, testloader, source):
             lr=5e-4, 
             temperature=0.07, 
             weight_decay=1e-4, 
-            max_epochs=100)
+            max_epochs=200)
 
     simclr_model.convnet.load_state_dict(
-        torch.load('./results/simclrMNIST-200.pt')
+        torch.load('./results/simclrMNIST-15.pt')
     )
 
     model = deepcopy(simclr_model.convnet)
@@ -315,7 +315,8 @@ def loop(trainset, testset, trainloader, testloader, source):
     
     times = []
     epochs = []
-    ssims = []
+    ssims_train = []
+    ssims_test = []
     
     for epoch in range(num_epochs): #(loop for every epoch)
         ssim_epoch = 0
@@ -331,6 +332,16 @@ def loop(trainset, testset, trainloader, testloader, source):
             optimizer.zero_grad()
             outputs = model(inputs)
             reconstructs = decoder(outputs)
+            
+            if source == 'MNIST':
+                    trainsize = 60000
+                    ssim_batch = ssim(reconstructs, inputs, win_size=11,
+                            size_average=False, data_range=1)
+            elif source == 'STL10':
+                trainsize = 8000    
+                ssim_batch = ssim(reconstructs, inputs, win_size=11,
+                        size_average=False, data_range=255)
+            ssim_epoch += torch.sum(ssim_batch).item()
                         
             loss = criterion(reconstructs, inputs)
             # get loss value and update the model weights
@@ -338,14 +349,16 @@ def loop(trainset, testset, trainloader, testloader, source):
             optimizer.step()
             running_loss += loss.item() * inputs.size(0)
         
+        ssims_train.append(ssim_epoch/trainsize)
         epoch_loss = running_loss / len(trainset)
-        print('[Train #{}] Loss: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, time.time() -start_time))
+        print('[Test #{}] Loss: {:.4f} SSIM: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, ssim_epoch/trainsize ,time.time()- start_time))
         
         plot_ae_outputs(model, decoder, testset, source, epoch)
         
         """ Testing Phase """
         model.eval()
         decoder.eval()
+        ssim_epoch = 0
         with torch.no_grad():
             running_loss = 0.
             for inputs, labels in testloader:
@@ -367,15 +380,15 @@ def loop(trainset, testset, trainloader, testloader, source):
                 running_loss += loss.item() * inputs.size(0)
                 
             times.append(time.time() -start_time)
-            ssims.append(ssim_epoch/trainsize)
+            ssims_test.append(ssim_epoch/trainsize)
             epochs.append(epoch)
             epoch_loss = running_loss / len(testset)
             print('[Test #{}] Loss: {:.4f} SSIM: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, ssim_epoch/trainsize ,time.time()- start_time))
             
         # Calling DataFrame constructor after zipping
         # both lists, with columns specified
-        df = pd.DataFrame(list(zip(epochs, ssims, times)),
-                    columns =['Epoch', 'SSIM', 'Time'])
+        df = pd.DataFrame(list(zip(epochs, ssims_train, ssims_test, times)),
+                    columns =['Epoch', 'SSIM_train', 'SSIM_test', 'Time'])
         df.to_csv('./results/MNIST/' + source + '_SIMCLR.csv')
             
         

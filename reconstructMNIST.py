@@ -218,7 +218,7 @@ encoder = SimCLR(
             max_epochs=100)
 
 encoder.convnet.load_state_dict(
-    torch.load('./results/simclrMNIST-200.pt')
+    torch.load('./results1/simclrMNIST-200.pt')
 )
 
 decoder = Decoder(encoded_space_dim=d)

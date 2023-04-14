@@ -89,7 +89,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 # Path to the folder where the datasets are/should be downloaded (e.g. MNIST)
 DATASET_PATH = "./data"
 # Path to the folder where the pretrained models are saved
-CHECKPOINT_PATH = "../results/MNIST"
+CHECKPOINT_PATH = "./results/MNIST"
 # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
 # workers as possible in a data loader, which corresponds to the number of CPU cores
 NUM_WORKERS = os.cpu_count()
@@ -325,7 +325,7 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
         model = SimCLR(max_epochs=max_epochs, **kwargs)
         trainer.fit(model, train_loader, val_loader)
 
-        torch.save(model.convnet.state_dict(), "simclrMNIST-200.pt")
+        torch.save(model.convnet.state_dict(), "./results/simclrMNIST-15.pt")
         
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
 
@@ -338,7 +338,7 @@ simclr_model = train_simclr(batch_size=256,
                             lr=5e-4, 
                             temperature=0.07, 
                             weight_decay=1e-4, 
-                            max_epochs=200)
+                            max_epochs=15)
 
 """To get an intuition of how training with contrastive learning behaves, we can take a look at the TensorBoard below:"""
 

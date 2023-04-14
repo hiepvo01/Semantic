@@ -234,7 +234,8 @@ def loop(trainset, testset, trainloader, testloader, source):
     
     times = []
     epochs = []
-    ssims = []
+    ssims_train = []
+    ssims_test = []
     
     for epoch in range(num_epochs): #(loop for every epoch)
         ssim_epoch = 0
@@ -250,6 +251,16 @@ def loop(trainset, testset, trainloader, testloader, source):
             optimizer.zero_grad()
             outputs = model(inputs)
             reconstructs = decoder(outputs)
+            
+            if source == 'MNIST':
+                    trainsize = 60000
+                    ssim_batch = ssim(reconstructs, inputs, win_size=11,
+                            size_average=False, data_range=1)
+            elif source == 'STL10':
+                trainsize = 100000    
+                ssim_batch = ssim(reconstructs, inputs, win_size=11,
+                        size_average=False, data_range=255)
+            ssim_epoch += torch.sum(ssim_batch).item()
                         
             loss = criterion(reconstructs, inputs)
             # get loss value and update the network weights
@@ -257,14 +268,16 @@ def loop(trainset, testset, trainloader, testloader, source):
             optimizer.step()
             running_loss += loss.item() * inputs.size(0)
         
+        ssims_train.append(ssim_epoch/trainsize)
         epoch_loss = running_loss / len(trainset)
         print('[Train #{}] Loss: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, time.time() -start_time))
         
-        plot_ae_outputs(model, decoder, testset, source, epoch)
+        # plot_ae_outputs(model, decoder, testset, source, epoch)
         
         """ Testing Phase """
         model.eval()
         decoder.eval()
+        ssim_epoch = 0
         with torch.no_grad():
             running_loss = 0.
             for inputs, labels in testloader:
@@ -286,15 +299,15 @@ def loop(trainset, testset, trainloader, testloader, source):
                 running_loss += loss.item() * inputs.size(0)
                 
             times.append(time.time() -start_time)
-            ssims.append(ssim_epoch/trainsize)
+            ssims_test.append(ssim_epoch/trainsize)
             epochs.append(epoch)
             epoch_loss = running_loss / len(testset)
             print('[Test #{}] Loss: {:.4f} SSIM: {:.4f} % Time: {:.4f}s'.format(epoch, epoch_loss, ssim_epoch/trainsize ,time.time()- start_time))
             
         # Calling DataFrame constructor after zipping
         # both lists, with columns specified
-        df = pd.DataFrame(list(zip(epochs, ssims, times)),
-                    columns =['Epoch', 'SSIM', 'Time'])
+        df = pd.DataFrame(list(zip(epochs, ssims_train, ssims_test, times)),
+                    columns =['Epoch', 'SSIM_train', 'SSIM_test', 'Time'])
         df.to_csv('./results/traditional/' + source + '_traditional.csv')
             
         
@@ -305,24 +318,24 @@ def loop(trainset, testset, trainloader, testloader, source):
 
 
 if __name__ == '__main__':    
-    source = "STL10" # Choose between STL10 or MNIST
+    source = "MNIST" # Choose between STL10 or MNIST
     os.makedirs("./results/traditional", exist_ok=True)
     trainset, testset, trainloader, testloader = prepareData(source)
-    # loop(trainset, testset, trainloader, testloader, source)
+    loop(trainset, testset, trainloader, testloader, source)
     
-    model = models.resnet18()
-    num_features = model.fc.in_features     #extract fc layers features
-    model.fc = nn.Linear(num_features, 512)
-    decoder = Decoder(num_input_channels=3, base_channel_size=32, latent_dim=num_features)
+    # model = models.resnet18()
+    # num_features = model.fc.in_features     #extract fc layers features
+    # model.fc = nn.Linear(num_features, 512)
+    # decoder = Decoder(num_input_channels=3, base_channel_size=32, latent_dim=num_features)
     
-    if source == "MNIST":
-        model.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        decoder = MNISTDecoder(encoded_space_dim=num_features)
+    # if source == "MNIST":
+    #     model.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+    #     decoder = MNISTDecoder(encoded_space_dim=num_features)
     
-    model.load_state_dict(torch.load('./results/traditional/' + source +  'encoder.pt'))
-    decoder.load_state_dict(torch.load('./results/traditional/' + source +  'decoder.pt'))
+    # model.load_state_dict(torch.load('./results1/traditional/' + source +  'encoder.pt'))
+    # decoder.load_state_dict(torch.load('./results1/traditional/' + source +  'decoder.pt'))
     
-    model = model.to(device) 
-    decoder = decoder.to(device)
+    # model = model.to(device) 
+    # decoder = decoder.to(device)
     
-    plot_ae_outputs(model, decoder, testset, source, epoch=1000)
+    # plot_ae_outputs(model, decoder, testset, source, epoch=1000)
