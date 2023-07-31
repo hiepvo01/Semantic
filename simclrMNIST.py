@@ -82,6 +82,7 @@ except ModuleNotFoundError: # Google Colab does not have PyTorch Lightning insta
     #!pip install --quiet pytorch-lightning>=1.4
     import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
+import numpy as np
 
 # Import tensorboard
 # %load_ext tensorboard
@@ -325,20 +326,59 @@ def train_simclr(batch_size, max_epochs=500, **kwargs):
         model = SimCLR(max_epochs=max_epochs, **kwargs)
         trainer.fit(model, train_loader, val_loader)
 
-        torch.save(model.convnet.state_dict(), "./results/simclrMNIST-15.pt")
+        torch.save(model.convnet.state_dict(), "./results/simclrMNIST-1024.pt")
         
         model = SimCLR.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
 
     return model
 
+def AWGN(x, snr, seed=7):
+    x = x.detach().cpu()
+    '''
+    加入高斯白噪声 Additive White Gaussian Noise
+    :param x: 原始信号
+    :param snr: 信噪比
+    :return: 加入噪声后的信号
+    '''
+    np.random.seed(seed)  # 设置随机种子
+    shape = np.array(x.shape)
+    snr = 10 ** (snr / 10.0)
+    xpower = torch.sum(x ** 2) / shape[0]
+    npower = xpower / snr
+    if len(shape) == 2:
+        # np.sqrt(npower)
+        noise = torch.tensor(torch.normal(mean=0,std=1,size=(shape[0], shape[1])) * np.sqrt(npower.cpu()))
+    else:
+        noise = torch.tensor(torch.normal(mean=0,std=1,size=(shape[0],)) * np.sqrt(npower.cpu()))
+        
+    # print(noise)
+    x = x + noise
+    x = x.to(device='cuda')
+
+    return x 
+
 """A common observation in contrastive learning is that the larger the batch size, the better the models perform. A larger batch size allows us to compare each image to more negative examples, leading to overall smoother loss gradients. However, in our case, we experienced that a batch size of 256 was sufficient to get good results."""
 
-simclr_model = train_simclr(batch_size=256, 
-                            hidden_dim=128, 
-                            lr=5e-4, 
-                            temperature=0.07, 
-                            weight_decay=1e-4, 
-                            max_epochs=15)
+# simclr_model = train_simclr(batch_size=256, 
+#                             hidden_dim=1024, 
+#                             lr=5e-4, 
+#                             temperature=0.07, 
+#                             weight_decay=1e-4, 
+#                             max_epochs=100)
+
+simclr_model = SimCLR( 
+                    hidden_dim=512, 
+                    lr=5e-4, 
+                    temperature=0.07, 
+                    weight_decay=1e-4, 
+                    max_epochs=200)
+    
+simclr_model.convnet.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+
+simclr_model.convnet.load_state_dict(
+    torch.load('./results/simclrMNIST-512.pt')
+)
+
 
 """To get an intuition of how training with contrastive learning behaves, we can take a look at the TensorBoard below:"""
 
@@ -376,6 +416,7 @@ class LogisticRegression(pl.LightningModule):
         
     def _calculate_loss(self, batch, mode='train'):
         feats, labels = batch
+        feats = AWGN(feats, snr=25)
         preds = self.model(feats)
         loss = F.cross_entropy(preds, labels)
         acc = (preds.argmax(dim=-1) == labels).float().mean()
@@ -442,7 +483,7 @@ test_feats_simclr = prepare_data_features(simclr_model, test_img_data)
 """Finally, we can write a training function as usual. We evaluate the model on the test set every 10 epochs to allow early stopping, but the low frequency of the validation ensures that we do not overfit too much on the test set."""
 
 def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, max_epochs=100, **kwargs):
-    trainer = pl.Trainer(default_root_dir=os.path.join(CHECKPOINT_PATH, "LogisticRegression"),
+    trainer = pl.Trainer(default_root_dir=os.path.join(CHECKPOINT_PATH, "LogisticRegression_SNR"),
                          accelerator="gpu" if str(device).startswith("cuda") else "cpu",
                          devices=1,
                          max_epochs=max_epochs,
@@ -459,7 +500,7 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
                                   drop_last=False, pin_memory=True, num_workers=0)
 
     # Check whether pretrained model exists. If yes, load it and skip training
-    pretrained_filename = os.path.join(CHECKPOINT_PATH, f"LogisticRegression_{model_suffix}.ckpt")
+    pretrained_filename = os.path.join(CHECKPOINT_PATH, f"LogisticRegression_SNR25_{model_suffix}.ckpt")
     if os.path.isfile(pretrained_filename):
         print(f"Found pretrained model at {pretrained_filename}, loading...")
         model = LogisticRegression.load_from_checkpoint(pretrained_filename)
@@ -468,7 +509,7 @@ def train_logreg(batch_size, train_feats_data, test_feats_data, model_suffix, ma
         model = LogisticRegression(**kwargs)
         trainer.fit(model, train_loader, test_loader)
         
-        torch.save(model.model.state_dict(), "logregMNIST.pt")
+        # torch.save(model.model.state_dict(), "logregMNIST_SNR25.pt")
         model = LogisticRegression.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
 
     # Test best model on train and validation set
@@ -537,10 +578,6 @@ for k, score in zip(dataset_sizes, test_scores):
 for k, score in zip(dataset_sizes, train_scores):
     print(f'Train accuracy for {k:3d} images per label: {100*score:4.2f}%')
 
-
-for k, score in zip(dataset_sizes, test_scores):
-    print(f'Test accuracy for {k:3d} images per label: {100*score:4.2f}%')
-
 """As one would expect, the classification performance improves the more data we have. However, with only 10 images per class, we can already classify more than 60% of the images correctly. This is quite impressive, considering that the images are also higher dimensional than e.g. MNIST. With the full dataset, we achieve an accuracy of 81%. The increase between 50 to 500 images per class might suggest a linear increase in performance with an exponentially larger dataset. However, with even more data, we could also finetune $f(\cdot)$ in the training process, allowing for the representations to adapt more to the specific classification task given.
 
 To set the results above into perspective, we will train the base network, a ResNet-18, on the classification task from scratch.
@@ -550,6 +587,15 @@ To set the results above into perspective, we will train the base network, a Res
 As a baseline to our results above, we will train a standard ResNet-18 with random initialization on the labeled training set of MNIST. The results will give us an indication of the advantages that contrastive learning on unlabeled data has compared to using only supervised training. The implementation of the model is straightforward since the ResNet architecture is provided in the torchvision library.
 """
 
+class LinearClassifier(nn.Module):
+    def __init__(self, input_size, num_classes=10):
+        super(LinearClassifier, self).__init__()
+        self.fc = nn.Linear(input_size, num_classes)
+
+    def forward(self, x):
+        logits = self.fc(x)
+        return logits
+
 class ResNet(pl.LightningModule):
 
     def __init__(self, num_classes, lr, weight_decay, max_epochs=100):
@@ -557,6 +603,10 @@ class ResNet(pl.LightningModule):
         self.save_hyperparameters()
         self.model = torchvision.models.resnet18(num_classes=num_classes)
         self.model.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        self.model.fc = nn.Sequential(
+            nn.Linear(512, 512)
+        )
+        self.linear = LinearClassifier(512)
 
 
     def configure_optimizers(self):
@@ -572,6 +622,8 @@ class ResNet(pl.LightningModule):
     def _calculate_loss(self, batch, mode='train'):
         imgs, labels = batch
         preds = self.model(imgs)
+        preds = AWGN(preds, snr=25)
+        preds = self.linear(preds)
         loss = F.cross_entropy(preds, labels)
         acc = (preds.argmax(dim=-1) == labels).float().mean()
 
@@ -601,10 +653,11 @@ train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
 train_img_aug_data = MNIST(root=DATASET_PATH, train=True, download=True,
                            transform=train_transforms)
 
+
 """The training function for the ResNet is almost identical to the Logistic Regression setup. Note that we allow the ResNet to perform validation every 2 epochs to also check whether the model overfits strongly in the first iterations or not."""
 
 def train_resnet(batch_size, max_epochs=100, **kwargs):
-    trainer = pl.Trainer(default_root_dir=os.path.join(CHECKPOINT_PATH, "ResNet"),
+    trainer = pl.Trainer(default_root_dir=os.path.join(CHECKPOINT_PATH, "ResNet_SNR"),
                          accelerator="gpu" if str(device).startswith("cuda") else "cpu",
                          devices=1,
                          max_epochs=max_epochs,
@@ -620,7 +673,7 @@ def train_resnet(batch_size, max_epochs=100, **kwargs):
                                   drop_last=False, pin_memory=True, num_workers=NUM_WORKERS)
 
     # Check whether pretrained model exists. If yes, load it and skip training
-    pretrained_filename = os.path.join(CHECKPOINT_PATH, "ResNet.ckpt")
+    pretrained_filename = os.path.join(CHECKPOINT_PATH, "ResNet_SNR25.ckpt")
     if os.path.isfile(pretrained_filename):
         print("Found pretrained model at %s, loading..." % pretrained_filename)
         model = ResNet.load_from_checkpoint(pretrained_filename)

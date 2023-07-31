@@ -13,6 +13,31 @@ from pytorch_msssim import ssim, ms_ssim
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") # device object
 import pandas as pd
 
+def AWGN(x, snr, seed=7):
+    x = x.detach().cpu()
+    '''
+    加入高斯白噪声 Additive White Gaussian Noise
+    :param x: 原始信号
+    :param snr: 信噪比
+    :return: 加入噪声后的信号
+    '''
+    np.random.seed(seed)  # 设置随机种子
+    shape = np.array(x.shape)
+    snr = 10 ** (snr / 10.0)
+    xpower = torch.sum(x ** 2) / shape[0]
+    npower = xpower / snr
+    if len(shape) == 2:
+        # np.sqrt(npower)
+        noise = torch.tensor(torch.normal(mean=0,std=1,size=(shape[0], shape[1])) * np.sqrt(npower.cpu()))
+    else:
+        noise = torch.tensor(torch.normal(mean=0,std=1,size=(shape[0],)) * np.sqrt(npower.cpu()))
+        
+    # print(noise)
+    x = x + noise
+    x = x.to(device='cuda')
+
+    return x 
+
 def prepareData(source):
     source = source
     if source == "CIFAR10":
@@ -108,6 +133,7 @@ class Decoder(nn.Module):
         )
 
     def forward(self, x):
+        x = AWGN(x, snr=10)
         x = self.linear(x)
         x = x.reshape(x.shape[0], -1, 12, 12)
         x = self.net(x)
@@ -137,10 +163,12 @@ class MNISTDecoder(nn.Module):
             nn.BatchNorm2d(8),
             nn.ReLU(True),
             nn.ConvTranspose2d(8, 1, 3, stride=2, 
+                               
             padding=1, output_padding=1)
         )
         
     def forward(self, x):
+        x = AWGN(x, snr=25)
         x = self.decoder_lin(x)
         x = self.unflatten(x)
         x = self.decoder_conv(x)
@@ -203,8 +231,8 @@ def plot_ae_outputs(encoder,decoder, test_dataset, source, epoch,n=10):
       ax.get_xaxis().set_visible(False)
       ax.get_yaxis().set_visible(False)  
 
-    plt.savefig('./results/traditional/' + source + 'original.png', bbox_inches='tight')
-    plt.savefig('./results/traditional/' + source + 'original.pdf', bbox_inches='tight')
+    plt.savefig('./results/traditional/' + source + 'original_SNR10.png', bbox_inches='tight')
+    plt.savefig('./results/traditional/' + source + 'original_SNR10.pdf', bbox_inches='tight')
 
 
 def loop(trainset, testset, trainloader, testloader, source):
@@ -308,17 +336,17 @@ def loop(trainset, testset, trainloader, testloader, source):
         # both lists, with columns specified
         df = pd.DataFrame(list(zip(epochs, ssims_train, ssims_test, times)),
                     columns =['Epoch', 'SSIM_train', 'SSIM_test', 'Time'])
-        df.to_csv('./results/traditional/' + source + '_traditional.csv')
+        df.to_csv('./results/traditional/' + source + '_traditional_SNR10.csv')
             
         
-    save_path = './results/traditional/' + source +  'encoder.pt'
-    torch.save(model.state_dict(), save_path)
-    save_path = './results/traditional/' + source +  'decoder.pt'
-    torch.save(decoder.state_dict(), save_path)
+    save_path = './results/traditional/' + source +  'encoder_SNR10.pt'
+    # torch.save(model.state_dict(), save_path)
+    save_path = './results/traditional/' + source +  'decoder_SNR10.pt'
+    # torch.save(decoder.state_dict(), save_path)
 
 
 if __name__ == '__main__':    
-    source = "MNIST" # Choose between STL10 or MNIST
+    source = "STL10" # Choose between STL10 or MNIST
     os.makedirs("./results/traditional", exist_ok=True)
     trainset, testset, trainloader, testloader = prepareData(source)
     loop(trainset, testset, trainloader, testloader, source)
